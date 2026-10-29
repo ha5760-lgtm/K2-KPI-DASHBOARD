@@ -21,14 +21,14 @@ KST = timezone(timedelta(hours=9))
 # ─── 공정 / KPI 정의 ─────────────────────────────────────────────
 
 PROCESSES = [
-    {"id": "photo", "name": "포토", "en": "Photo", "types": [("SCN", "Scanner"), ("TRK", "Track")]},
-    {"id": "etch", "name": "식각", "en": "Etch", "types": [("ETC", "Dry Etch"), ("ASH", "Asher")]},
-    {"id": "depo", "name": "증착", "en": "Deposition", "types": [("CVD", "CVD"), ("ALD", "ALD")]},
-    {"id": "diff", "name": "확산", "en": "Diffusion", "types": [("FUR", "Furnace"), ("RTP", "RTP")]},
-    {"id": "imp", "name": "이온주입", "en": "Implant", "types": [("IMP", "Implanter"), ("ANL", "Anneal")]},
-    {"id": "metal", "name": "금속배선", "en": "Metal", "types": [("PVD", "PVD"), ("ECP", "ECP")]},
+    {"id": "photo", "name": "Photo", "en": "Photo", "types": [("SCN", "Scanner"), ("TRK", "Track")]},
+    {"id": "etch", "name": "Etch", "en": "Etch", "types": [("ETC", "Dry Etch"), ("ASH", "Asher")]},
+    {"id": "depo", "name": "Depo", "en": "Deposition", "types": [("CVD", "CVD"), ("ALD", "ALD")]},
+    {"id": "diff", "name": "Diffusion", "en": "Diffusion", "types": [("FUR", "Furnace"), ("RTP", "RTP")]},
+    {"id": "imp", "name": "Implant", "en": "Implant", "types": [("IMP", "Implanter"), ("ANL", "Anneal")]},
+    {"id": "metal", "name": "Metal", "en": "Metal", "types": [("PVD", "PVD"), ("ECP", "ECP")]},
     {"id": "cmp", "name": "CMP", "en": "CMP", "types": [("CMP", "Polisher"), ("PCL", "Post-Clean")]},
-    {"id": "clean", "name": "세정", "en": "Clean", "types": [("WET", "Wet Bench"), ("SCR", "Scrubber")]},
+    {"id": "clean", "name": "Clean", "en": "Clean", "types": [("WET", "Wet Bench"), ("SCR", "Scrubber")]},
 ]
 PROC_BY_ID = {p["id"]: p for p in PROCESSES}
 
@@ -66,7 +66,6 @@ TECHNICIANS = ["김민수", "이서연", "박준혁", "최지은", "정우진", 
 PRODUCTS = [("DRAM", .45), ("NAND", .28), ("Foundry", .18), ("Eng / Monitor", .09)]
 LAYERS = ["ACT", "GATE", "CNT", "M1", "V1", "M2"]
 PM_TYPES = [("Daily", 88, 96), ("Weekly", 70, 86), ("Monthly", 52, 72), ("Quarterly", 30, 55)]
-REWORK_CAUSES = [("계측 OOS", .38), ("Defect", .26), ("설비 이상", .18), ("Recipe / 작업 오류", .11), ("기타", .07)]
 QUEUE_REASONS = [("Dispatch 대기", .40), ("Reticle · 소모품 대기", .22), ("계측 대기", .23), ("Recipe Hold", .15)]
 
 HOURS = 24
@@ -75,32 +74,31 @@ WEEKS = 12
 QUEUE_LIMIT = 1000     # 병목 판정 대기 WIP 기준(매)
 
 KPIS = [
-    {"id": "downloss", "name": "설비 정지로스", "en": "Down Loss", "unit": "%", "digits": 1, "lower": True,
+    {"id": "downloss", "category": "ops", "name": "설비 정지로스", "en": "Down Loss", "unit": "%", "digits": 1, "lower": True,
      "target": 3.5, "sources": ["EES 설비상태", "MES 이벤트", "PMS 작업이력"],
      "formula": "정지로스 = 비계획 정지시간 ÷ 캘린더 시간"},
-    {"id": "util", "name": "가동률", "en": "Utilization", "unit": "%", "digits": 1, "lower": False,
+    {"id": "util", "category": "ops", "name": "가동률", "en": "Utilization", "unit": "%", "digits": 1, "lower": False,
      "target": 85.0, "sources": ["EES 설비상태", "MES 이벤트"],
      "formula": "가동률 = Run 시간 ÷ 캘린더 시간"},
-    {"id": "pm_auto", "name": "PM 자동화율", "en": "PM Automation", "unit": "%", "digits": 1, "lower": False,
+    {"id": "pm_auto", "category": "ops", "name": "PM 자동화율", "en": "PM Automation", "unit": "%", "digits": 1, "lower": False,
      "target": 75.0, "sources": ["PMS 작업이력"],
      "formula": "PM 자동화율 = 자동 수행 PM 항목 ÷ 전체 PM 항목 (주간)"},
-    {"id": "move", "name": "MOVE량", "en": "Moves", "unit": "mv", "digits": 0, "lower": False,
-     "target": None, "sources": ["MES Track-out"],
-     "formula": "MOVE = 최근 24시간 Track-out 웨이퍼 Step 수"},
-    {"id": "bottleneck", "name": "병목설비", "en": "Bottleneck", "unit": "wf", "digits": 0, "lower": True,
+    {"id": "bottleneck", "category": "ops", "name": "병목설비", "en": "Bottleneck", "unit": "wf", "digits": 0, "lower": True,
      "target": QUEUE_LIMIT, "sources": ["MES WIP", "EES 설비상태"],
      "formula": f"병목 = 현재 대기 WIP 최대 설비 (기준 {QUEUE_LIMIT:,}매)"},
-    {"id": "output", "name": "생산량", "en": "Wafer Out", "unit": "wf", "digits": 0, "lower": False,
+    {"id": "move", "category": "prod", "name": "MOVE량", "en": "Moves", "unit": "mv", "digits": 0, "lower": False,
+     "target": None, "sources": ["MES Track-out"],
+     "formula": "MOVE = 최근 24시간 Track-out 웨이퍼 Step 수"},
+    {"id": "output", "category": "prod", "name": "생산량", "en": "Wafer Out", "unit": "wf", "digits": 0, "lower": False,
      "target": None, "sources": ["MES Track-out"],
      "formula": "생산량 = 최근 24시간 공정 완료(Out) 웨이퍼 수"},
-    {"id": "tpss", "name": "TPSS", "en": "TPSS Index", "unit": "%", "digits": 1, "lower": False,
+    {"id": "tpss", "category": "prod", "name": "TPSS", "en": "TPSS Index", "unit": "%", "digits": 1, "lower": False,
      "target": 92.0, "sources": ["TPSS"],
      "formula": "TPSS 지표 = TPSS 시스템 설비별 지수 평균"},
-    {"id": "rework", "name": "재작업률", "en": "Rework Rate", "unit": "%", "digits": 2, "lower": True,
-     "target": 1.5, "sources": ["MES Rework", "계측(Metrology)"],
-     "formula": "재작업률 = Rework 웨이퍼 ÷ 처리 웨이퍼"},
 ]
 KPI_BY_ID = {k["id"]: k for k in KPIS}
+KPI_CATEGORIES = [{"id": "ops", "name": "설비 운영", "en": "Equipment"},
+                  {"id": "prod", "name": "생산", "en": "Production"}]
 
 
 def now_kst() -> datetime:
@@ -142,7 +140,6 @@ class ProcessState:
         self.rate = {e: r.uniform(150, 210) for e in self.eq}  # 풀가동 시 시간당 Move
         self.out_ratio = {e: r.uniform(.25, .29) for e in self.eq}
         self.q_base = {e: r.uniform(80, 420) for e in self.eq}
-        self.rw_base = {e: r.uniform(.5, 1.5) * r.uniform(.8, 1.3) for e in self.eq}
         self.pm_level = {e: r.uniform(48, 96) for e in self.eq}
         self.pm_type_rate = {t: r.uniform(lo, hi) for t, lo, hi in PM_TYPES}
         self.product_mix = [(n, w * r.uniform(.8, 1.2)) for n, w in PRODUCTS]
@@ -152,7 +149,7 @@ class ProcessState:
         self.idle = {e: [] for e in self.eq}
         self.pm_min = {e: [] for e in self.eq}
         self.noise = {e: [] for e in self.eq}
-        self.rw = {e: [] for e in self.eq}
+        self._idle_level = 1.0
         for _ in range(BUCKETS):
             self._append_bucket()
 
@@ -171,7 +168,6 @@ class ProcessState:
         self.lot_seq = r.randint(10000, 60000)
         self.lot_events = deque(maxlen=40)
         self.out_events = deque(maxlen=40)
-        self.rework_events = deque(maxlen=40)
         self.pm_events = []
         self._seed_lot_events(now)
         self._seed_pm_events(now)
@@ -181,12 +177,12 @@ class ProcessState:
     # ── 버킷 관리 ──
     def _append_bucket(self):
         r = self.rng
+        level = r.uniform(.8, 1.25) if len(self.idle[self.eq[0]]) % HOURS == 0 else self._idle_level
+        self._idle_level = level
         for e in self.eq:
-            self.idle[e].append(r.uniform(.03, .11))
+            self.idle[e].append(r.uniform(.03, .11) * level)
             self.pm_min[e].append(r.uniform(30, 55) if r.random() < .015 else 0.0)
             self.noise[e].append(r.uniform(.95, 1.05))
-            spike = r.uniform(2, 4) if r.random() < .025 else 0.0
-            self.rw[e].append(max(0.0, self.rw_base[e] * r.uniform(.6, 1.4) + spike))
 
     def roll(self, now: datetime):
         """시(hour)가 바뀌면 버킷을 한 칸 민다."""
@@ -194,7 +190,7 @@ class ProcessState:
         while self.anchor < target:
             self.anchor += timedelta(hours=1)
             for e in self.eq:
-                for arr in (self.idle[e], self.pm_min[e], self.noise[e], self.rw[e]):
+                for arr in (self.idle[e], self.pm_min[e], self.noise[e]):
                     arr.pop(0)
             self._append_bucket()
         horizon = now - timedelta(hours=BUCKETS + 2)
@@ -213,23 +209,30 @@ class ProcessState:
 
     def _seed_episodes(self, now):
         r = self.rng
-        start0 = self.anchor
+        # 전일 / 오늘 구간별로 정지 수준을 다르게 해 일간 변동을 만든다
+        day_factor = [r.uniform(.7, 1.35), r.uniform(.7, 1.35)]
         for e in self.eq:
-            n = max(0, round(r.gauss(1.5, .9) * self.bias * self.factor[e]))
-            for _ in range(n):
-                if r.random() < .4:  # 교대(06/14/22시) 전후 집중
-                    day = start0 + timedelta(hours=r.randint(0, BUCKETS - 1))
-                    sh = r.choice([6, 14, 22])
-                    base = day.replace(hour=sh) + timedelta(minutes=r.uniform(-80, 80))
-                else:
-                    base = start0 + timedelta(minutes=r.uniform(0, BUCKETS * 60))
-                kind = _pick(r, [(t, w) for t, w, _, _ in DOWN_TYPES])
-                lo, hi = next((a, b) for t, _, a, b in DOWN_TYPES if t == kind)
-                dur = r.uniform(lo, hi)
-                if base < now - timedelta(minutes=5) and base + timedelta(minutes=dur) < now:
-                    self.episodes.append(self._make_episode(e, base, dur, kind))
+            for half in (0, 1):
+                start0 = self.anchor + timedelta(hours=HOURS * half)
+                n = max(0, round(r.gauss(.75, .6) * self.bias * self.factor[e] * day_factor[half]))
+                for _ in range(n):
+                    self._seed_one(e, start0, now)
         for e in r.sample(self.eq, r.randint(0, 1) + (1 if self.bias > 1.0 else 0)):
             self.episodes.append(self._make_episode(e, now - timedelta(minutes=r.uniform(3, 45)), None))
+
+    def _seed_one(self, e, start0, now):
+        r = self.rng
+        if r.random() < .4:  # 교대(06/14/22시) 전후 집중
+            day = start0 + timedelta(hours=r.randint(0, HOURS - 1))
+            sh = r.choice([6, 14, 22])
+            base = day.replace(hour=sh) + timedelta(minutes=r.uniform(-80, 80))
+        else:
+            base = start0 + timedelta(minutes=r.uniform(0, HOURS * 60))
+        kind = _pick(r, [(t, w) for t, w, _, _ in DOWN_TYPES])
+        lo, hi = next((a, b) for t, _, a, b in DOWN_TYPES if t == kind)
+        dur = r.uniform(lo, hi)
+        if base < now - timedelta(minutes=5) and base + timedelta(minutes=dur) < now:
+            self.episodes.append(self._make_episode(e, base, dur, kind))
 
     def down_now(self):
         return {ep["eq"]: ep for ep in self.episodes if ep["end"] is None}
@@ -247,15 +250,10 @@ class ProcessState:
         self.lot_events.appendleft(ev)
         if r.random() < .3:
             self.out_events.appendleft(ev)
-        if r.random() < .06:
-            self.rework_events.appendleft({**ev, "cause": _pick(r, REWORK_CAUSES), "qty": r.randint(1, 6),
-                                           "done": False})
 
     def _seed_lot_events(self, now):
         for i in range(150, 0, -1):
             self._lot_event(now - timedelta(minutes=i * 2.5))
-        for ev in list(self.rework_events)[3:]:
-            ev["done"] = True
 
     def _seed_pm_events(self, now):
         r = self.rng
@@ -283,9 +281,6 @@ class ProcessState:
             self.episodes.append(self._make_episode(e, now, None))
         if r.random() < .45:
             self._lot_event(now)
-        for ev in self.rework_events:
-            if not ev["done"] and r.random() < .01:
-                ev["done"] = True
         self._cache_key = None
 
     # ── 파생 그리드 (설비 × 시간) ──
@@ -296,7 +291,7 @@ class ProcessState:
             return self._grids
         starts = [self.anchor + timedelta(hours=i) for i in range(BUCKETS)]
         elapsed = [60.0] * (BUCKETS - 1) + [max(1.0, (now - starts[-1]).total_seconds() / 60)]
-        g = {k: {} for k in ("down", "util", "move", "output", "queue", "tpss", "rework", "rework_wf", "idle", "pm")}
+        g = {k: {} for k in ("down", "util", "move", "output", "queue", "tpss", "idle", "pm")}
         for e in self.eq:
             down = [0.0] * BUCKETS
             for ep in self.episodes:
@@ -309,7 +304,7 @@ class ProcessState:
                     if ov > 0:
                         down[i] += ov
             down = [min(d, elapsed[i]) for i, d in enumerate(down)]
-            util, move, out, queue, tpss, rwwf, idle, pm = [], [], [], [], [], [], [], []
+            util, move, out, queue, tpss, idle, pm = [], [], [], [], [], [], []
             backlog = 0.0
             for i in range(BUCKETS):
                 el = elapsed[i]
@@ -324,12 +319,10 @@ class ProcessState:
                 out.append(mv * self.out_ratio[e])
                 queue.append(self.q_base[e] * self.noise[e][i] + backlog)
                 tpss.append(_clamp(58 + .42 * u + (self.noise[e][i] - 1) * 40, 40, 100))
-                rwwf.append(mv * self.rw[e][i] / 100)
                 idle.append(idle_m / el * 100)
                 pm.append(pm_m / el * 100)
             g["down"][e], g["util"][e], g["move"][e], g["output"][e] = down, util, move, out
-            g["queue"][e], g["tpss"][e], g["rework_wf"][e] = queue, tpss, rwwf
-            g["rework"][e] = list(self.rw[e])
+            g["queue"][e], g["tpss"][e] = queue, tpss
             g["idle"][e], g["pm"][e] = idle, pm
         g["elapsed"] = elapsed
         g["starts"] = starts
@@ -375,9 +368,6 @@ class View:
             return [sum(g[kid][e][i] for e in self.eq) * 60 / self.el[i] for i in idx]
         if kid == "bottleneck":
             return [max(g["queue"][e][i] for e in self.eq) for i in idx]
-        if kid == "rework":
-            return [sum(g["rework_wf"][e][i] for e in self.eq) / max(1, sum(g["move"][e][i] for e in self.eq)) * 100
-                    for i in idx]
         if kid == "pm_auto":
             return [_mean(s.weekly[e][w] for s in self.states for e in s.eq) for w in range(WEEKS)]
         raise KeyError(kid)
@@ -390,12 +380,13 @@ class View:
             w = sum(self.el[i] for i in idx)
             return _mean(sum(g[kid][e][i] * self.el[i] for i in idx) / w for e in self.eq)
         if kid in ("move", "output"):
-            return sum(g[kid][e][i] for e in self.eq for i in idx)
+            total = sum(g[kid][e][i] for e in self.eq for i in idx)
+            if day == "yday":  # 오늘 마지막 구간이 진행 중이므로 전일도 같은 경과 시간만큼만 비교
+                last = idx[-1]
+                total -= sum(g[kid][e][last] for e in self.eq) * (1 - self.el[-1] / 60)
+            return total
         if kid == "bottleneck":
             return max(g["queue"][e][idx[-1]] for e in self.eq)
-        if kid == "rework":
-            return sum(g["rework_wf"][e][i] for e in self.eq for i in idx) / max(
-                1, sum(g["move"][e][i] for e in self.eq for i in idx)) * 100
         if kid == "pm_auto":
             sr = self.series("pm_auto")
             return sr[-1] if day == "today" else sr[-5]
@@ -416,8 +407,6 @@ class View:
             return sum(g[kid][e][i] for i in idx)
         if kid == "bottleneck":
             return g["queue"][e][idx[-1]]
-        if kid == "rework":
-            return sum(g["rework_wf"][e][i] for i in idx)
         if kid == "pm_auto":
             s = next(s for s in self.states if e in s.weekly)
             return s.weekly[e][-1]
@@ -458,7 +447,8 @@ def build_card(v: View, kid: str) -> dict:
     cur = v.value(kid)
     st, pct = status_of(kid, cur, target)
     series = v.series(kid)
-    card = {"id": kid, "name": k["name"], "en": k["en"], "unit": k["unit"], "status": st, "pct": pct,
+    card = {"id": kid, "kind": "core", "category": k["category"], "name": k["name"], "en": k["en"], "unit": k["unit"],
+            "status": st, "pct": pct,
             "value": round(cur, 3), "target": round(target, 3), "spark": [round(x, 3) for x in series[-12:]],
             "text": False}
     if kid == "bottleneck":
@@ -468,7 +458,7 @@ def build_card(v: View, kid: str) -> dict:
         heavy = [e for e in ranked if v.g["queue"][e][idx] >= QUEUE_LIMIT * .8]
         s = next(s for s in v.states if top in s.eq)
         wait = v.g["queue"][top][idx] / s.rate[top]
-        card.update(display=top, text=True, unit="", target_text=f"대기 WIP {fmt(cur)} wf",
+        card.update(display=top, text=True, unit="", target_text=f"≤ {QUEUE_LIMIT:,} wf",
                     delta=f"병목 후보 {len(heavy)}대 · 대기 {wait:.1f}h", delta_class="down" if st != "ok" else "up",
                     sub=v.eq_proc[top]["name"])
         return card
@@ -612,16 +602,6 @@ def _stats(v: View, kid):
             {"label": "기준 미달 설비", "value": fmt(sum(1 for x in vals.values() if x < KPI_BY_ID[kid]["target"])), "unit": "대", "tone": "alert"},
             {"label": "최저 설비", "value": low, "unit": "", "note": f"{vals[low]:.1f}%", "mono": True},
         ]
-    if kid == "rework":
-        wf = sum(v.eq_total(kid, e) for e in v.eq)
-        top = max(v.eq, key=lambda e: v.eq_total(kid, e))
-        cause = max(_breakdown(v, kid)["items"], key=lambda x: x["value"])
-        return [
-            {"label": "재작업률", "value": fmt(v.value(kid), 2), "unit": "%"},
-            {"label": "Rework 웨이퍼", "value": fmt(wf), "unit": "wf"},
-            {"label": "최다 원인", "value": cause["name"], "unit": "", "note": f"{cause['value'] / max(wf, 1) * 100:.0f}%"},
-            {"label": "최다 발생 설비", "value": top, "unit": "", "note": f"{fmt(v.eq_total(kid, top))} wf", "mono": True, "tone": "alert"},
-        ]
     return []
 
 
@@ -685,10 +665,6 @@ def _breakdown(v: View, kid):
                  ("C (85–90)", lambda x: 85 <= x < 90), ("D (85 미만)", lambda x: x < 85)]
         return {"title": "설비 등급 분포", "sub": f"설비 {len(vals)}대 · 24h 평균", "unit": "대", "share": True,
                 "items": [{"name": n, "value": sum(1 for x in vals if f(x))} for n, f in bands], "src": "TPSS"}
-    if kid == "rework":
-        wf = sum(v.eq_total(kid, e) for e in v.eq)
-        return {"title": "원인별 구성", "sub": f"Rework {wf:,.0f}매 기준", "unit": "wf", "share": True,
-                "items": [{"name": n, "value": round(wf * w)} for n, w in REWORK_CAUSES], "src": "MES Rework"}
     return {"items": []}
 
 
@@ -703,8 +679,7 @@ def _ranking(v: View, kid):
               "move": ("설비별 MOVE Top 10", "mv", "최근 24시간 누적"),
               "bottleneck": ("대기 WIP Top 10", "wf", f"현재 기준 · 붉은 표시 = {QUEUE_LIMIT:,}매 이상"),
               "output": ("설비별 생산량 Top 10", "wf", "최근 24시간 누적"),
-              "tpss": ("TPSS 하위 10 설비", "%", "최근 24h 평균 · 붉은 표시 = 85 미만"),
-              "rework": ("설비별 Rework Top 10", "wf", "최근 24h Rework 매수 · 붉은 표시 = 3% 이상 구간 발생")}
+              "tpss": ("TPSS 하위 10 설비", "%", "최근 24h 평균 · 붉은 표시 = 85 미만")}
     title, unit, sub = titles[kid]
 
     def alert(e):
@@ -719,8 +694,6 @@ def _ranking(v: View, kid):
             return x >= QUEUE_LIMIT
         if kid == "tpss":
             return x < 85
-        if kid == "rework":
-            return any(v.g["rework"][e][i] >= 3 for i in View.rng_of("today"))
         return False
 
     digits = 1 if unit in ("h", "%") else 0
@@ -746,7 +719,6 @@ def _heatmap(v: View, kid, ranking):
         "bottleneck": ("queue", "high_bad", 0, 1400, QUEUE_LIMIT, "wf", f"셀 농도 = 대기 WIP · 붉은 셀 = {QUEUE_LIMIT:,}매 이상"),
         "output": ("output", "volume", 0, None, None, "wf", "셀 농도 = 시간당 생산량 · 붉은 셀 = 설비 평균 30% 미만 (Stall)"),
         "tpss": ("tpss", "low_bad", 70, 100, 85, "%", "셀 농도 = 기준 대비 부족분 · 붉은 셀 = 85 미만"),
-        "rework": ("rework", "high_bad", 0, 4, 3, "%", "셀 농도 = 시간대 재작업률 · 붉은 셀 = 3% 이상"),
     }[kid]
     vals = [[round(g[key][e][i] / (v.el[i] / 60 if kid in ("move", "output") else 1), 1) for i in today] for e in rows]
     if hi is None:
@@ -835,15 +807,6 @@ def _events(v: View, kid):
                 _cell(f"{x - tgt:+.1f}", "mono"), _cell(f"{v.g['util'][e][idx]:.1f}%", "mono"), _cell(lbl, "status", sc)]})
         return {"title": "현재 시간대 TPSS 하위 설비", "src": "TPSS",
                 "columns": ["설비", "유형", "TPSS", "기준", "편차", "가동률", "상태"], "rows": rows}
-    if kid == "rework":
-        evs = sorted((ev for s in v.states for ev in s.rework_events), key=lambda x: x["time"], reverse=True)[:9]
-        for ev in evs:
-            rows.append({"new": fresh(ev["time"]), "cells": [
-                _cell(hm(ev["time"]), "mono"), _cell(ev["lot"], "mono"), _cell(ev["eq"], "eq"), _cell(ev["step"], "mono"),
-                _cell(ev["cause"]), _cell(f"{ev['qty']} wf"),
-                _cell("완료" if ev["done"] else "재작업중", "status", "done" if ev["done"] else "run")]})
-        return {"title": "Rework 발생 Lot", "src": "MES Rework",
-                "columns": ["발생", "Lot ID", "설비", "Step", "원인", "매수", "상태"], "rows": rows}
     return {"columns": [], "rows": []}
 
 
@@ -860,13 +823,12 @@ def _insights(v: View, kid, d):
     unit = d["ranking"]["unit"]
     if rk:
         top = rk[0]
-        total = sum(v.eq_total(kid, e) for e in v.eq) if kid in ("downloss", "move", "output", "rework") else None
+        total = sum(v.eq_total(kid, e) for e in v.eq) if kid in ("downloss", "move", "output") else None
         share = f" — 전체의 {top['value'] / total * 100:.0f}%" if total else ""
         verb = {"util": "가동률 최저", "pm_auto": "자동화율 최저", "tpss": "TPSS 최저", "move": "MOVE 최다",
                 "output": "생산량 최다", "bottleneck": "대기 WIP 최대"}.get(kid, f"{k['name']} 최대")
         label = {"util": "24h 평균 가동률", "pm_auto": "이번 주 자동화율", "move": "24h MOVE",
-                 "bottleneck": "현재 대기 WIP", "output": "24h 생산량", "tpss": "24h 평균 TPSS",
-                 "rework": "24h Rework"}.get(kid, "")
+                 "bottleneck": "현재 대기 WIP", "output": "24h 생산량", "tpss": "24h 평균 TPSS"}.get(kid, "")
         msg = f"{label} {top['value']:,.{d['ranking']['digits']}f}{unit}{share}."
         if top["alert"]:
             msg += " 관리 기준 이탈 — 조치 필요."
@@ -954,14 +916,14 @@ class SimulatedProvider(KPIProvider):
     def _view(self, process):
         now = now_kst()
         if process == "all":
-            return View(list(self.states.values()), now, "전체")
+            return View(list(self.states.values()), now, "All")
         if process not in self.states:
             raise KeyError(process)
         return View([self.states[process]], now, PROC_BY_ID[process]["name"])
 
     def processes(self):
         now = now_kst()
-        out = [{"id": "all", "name": "전체", "en": "All"}]
+        out = [{"id": "all", "name": "All", "en": "All"}]
         for p in PROCESSES:
             v = View([self.states[p["id"]]], now, p["name"])
             st = [build_card(v, k["id"])["status"] for k in KPIS]

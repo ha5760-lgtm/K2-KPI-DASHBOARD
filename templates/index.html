@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>K2 KPI Board</title>
+<script>
+  // 저장된 테마 또는 OS 설정을 첫 페인트 전에 적용 (깜빡임 방지)
+  (function () {
+    var t = null;
+    try { t = localStorage.getItem('kpi-theme'); } catch (e) {}
+    if (!t) t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
 <link rel="stylesheet" href="/static/css/fonts.css">
 <link rel="stylesheet" href="/static/css/style.css">
 </head>
@@ -14,11 +23,12 @@
     <div class="brand-mark">K2</div>
     <div>
       <div class="brand-title">KPI Board</div>
-      <div class="brand-sub">8대 공정 그룹 핵심 KPI 실시간 현황</div>
+      <div class="brand-sub">8대 공정 그룹 핵심 KPI 현황</div>
     </div>
   </div>
   <div class="spacer"></div>
   <div class="sources" id="sources"></div>
+  <button class="icon-btn" id="themeBtn" data-action="theme" title="다크 / 라이트 테마 전환" aria-label="테마 전환"></button>
   <div class="live" id="live"><b>연결 중</b><span class="num" id="updated">--</span></div>
 </header>
 
@@ -26,15 +36,49 @@
 
 <main class="page">
   <div class="section-head">
-    <h2 id="cardsTitle">핵심 KPI</h2>
-    <span class="meta">최근 24시간 기준 · 목표 대비 · 전일 동시간 대비 · 카드를 선택하면 아래에 상세 분석이 열립니다</span>
+    <h2 id="cardsTitle">실시간 KPI</h2>
+    <span class="meta">설비 운영 · 생산 · 최근 24시간 · 목표 대비 · 전일 대비</span>
     <div class="summary" id="summary"></div>
   </div>
-
   <section class="kpi-grid" id="kpis"></section>
+
+  <div class="section-head section-gap">
+    <h2>공통 KPI</h2>
+    <span class="meta">월 단위 · 항목을 자유롭게 추가하고 값을 입력해 관리</span>
+    <div class="summary"><button class="btn primary sm" data-action="add">+ KPI 추가</button></div>
+  </div>
+  <section class="cat-grid" id="cats"></section>
 
   <section class="detail" id="detail" hidden></section>
 </main>
+
+<div class="modal-bg" id="modal" hidden>
+  <form class="modal" id="kpiForm" autocomplete="off">
+    <h3 id="modalTitle">KPI 추가</h3>
+    <div class="form">
+      <label class="full">카테고리 <span class="hint">기존 카테고리를 고르거나 새 이름을 입력하면 카테고리가 생성됩니다</span>
+        <input name="category" list="catList" required maxlength="30"></label>
+      <datalist id="catList"></datalist>
+      <label>KPI 이름 <input name="name" required maxlength="40" placeholder="예: Velocity"></label>
+      <label>영문명 <input name="en" maxlength="40" placeholder="예: Layer per Day"></label>
+      <label>단위 <input name="unit" maxlength="10" placeholder="%, 일, 건, h …"></label>
+      <label>목표 <span class="hint">비우면 목표 없음(모니터링 항목)</span><input name="target" type="number" step="any"></label>
+      <label>방향
+        <select name="lower"><option value="false">높을수록 좋음</option><option value="true">낮을수록 좋음</option></select></label>
+      <label>All 집계 <span class="hint">공정 값을 합칠 때</span>
+        <select name="agg"><option value="avg">평균</option><option value="sum">합계</option></select></label>
+      <label>소수 자리
+        <select name="digits"><option>0</option><option selected>1</option><option>2</option><option>3</option></select></label>
+      <label>담당 <input name="owner" maxlength="40"></label>
+      <label class="full">정의 / 설명 <textarea name="description" rows="2" maxlength="200" placeholder="계산식, 데이터 출처 등"></textarea></label>
+      <div class="form-err" id="formErr" hidden></div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn" data-action="close">취소</button>
+      <button type="submit" class="btn primary">저장</button>
+    </div>
+  </form>
+</div>
 
 <div class="tooltip" id="tooltip" hidden></div>
 
