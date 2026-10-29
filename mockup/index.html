@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K2 Photo KPI Board</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* ─── Tokens (기존 대시보드 + 삼성 공식자료 톤: 네이비 / 그레이 / 레드 강조) ─── */
+:root {
+  --navy: #1428A0;
+  --navy-dark: #0B1A6E;
+  --navy-2: #3B5BC0;
+  --navy-3: #8A9AD6;
+  --navy-4: #C9D1EE;
+  --navy-bg: #EEF1FA;
+  --red: #D63232;
+  --red-bg: #FCEEEE;
+  --amber: #B7791F;
+  --amber-bg: #FBF5E5;
+  --ok: #1428A0;
+  --bg: #F4F5F8;
+  --white: #FFFFFF;
+  --line: #E6E8EE;
+  --line-strong: #D3D7E0;
+  --text: #111318;
+  --text2: #4B5160;
+  --text3: #8B92A1;
+  --radius: 4px;
+  --mono: 'JetBrains Mono', monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Inter', 'Noto Sans KR', 'WenQuanYi Zen Hei', sans-serif;
+  background: var(--bg); color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  font-size: 13px;
+}
+.num { font-family: 'Inter', sans-serif; font-feature-settings: "tnum"; }
+
+/* ─── Header ─────────────────────────────── */
+.topbar {
+  background: var(--white); border-bottom: 1px solid var(--line);
+  height: 64px; padding: 0 32px;
+  display: flex; align-items: center; gap: 24px;
+}
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-mark {
+  width: 34px; height: 34px; border-radius: 4px; background: var(--navy);
+  color: #fff; font-weight: 800; font-size: 13px; letter-spacing: -.02em;
+  display: grid; place-items: center;
+}
+.brand-title { font-size: 17px; font-weight: 800; letter-spacing: -.02em; }
+.brand-sub { font-size: 11.5px; color: var(--text3); margin-top: 1px; }
+.seg { display: flex; border: 1px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; }
+.seg span { padding: 7px 14px; font-size: 12px; font-weight: 600; color: var(--text2); border-right: 1px solid var(--line-strong); }
+.seg span:last-child { border-right: 0; }
+.seg span.on { background: var(--navy); color: #fff; }
+.select { border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 7px 30px 7px 12px; font-size: 12px; font-weight: 600; color: var(--text2); position: relative; }
+.select::after { content: ''; position: absolute; right: 11px; top: 12px; border: 4px solid transparent; border-top-color: var(--text3); }
+.spacer { flex: 1; }
+.sources { display: flex; gap: 6px; }
+.src { font-size: 11px; font-weight: 600; color: var(--text2); padding: 4px 9px; border-radius: 20px; background: var(--bg); display: flex; align-items: center; gap: 6px; }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--navy-2); }
+.dot.warn { background: var(--amber); }
+.live { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text2); padding-left: 16px; border-left: 1px solid var(--line); }
+.live b { color: var(--red); font-weight: 700; letter-spacing: .04em; display: flex; align-items: center; gap: 6px; }
+.live b::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 3px var(--red-bg); }
+
+/* ─── Page ─────────────────────────────── */
+.page { padding: 24px 32px 40px; }
+.section-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 14px; }
+.section-head h2 { font-size: 15px; font-weight: 800; letter-spacing: -.01em; }
+.section-head .meta { font-size: 12px; color: var(--text3); }
+.summary { margin-left: auto; display: flex; gap: 18px; font-size: 12px; color: var(--text2); }
+.summary i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+
+/* ─── KPI Cards ─────────────────────────────── */
+.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.kpi {
+  background: var(--white); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 16px 18px 14px; position: relative; cursor: pointer;
+  transition: box-shadow .15s, border-color .15s;
+}
+.kpi:hover { border-color: var(--navy-4); box-shadow: 0 4px 14px rgba(20,40,160,.07); }
+.kpi.sel { border-color: var(--navy); box-shadow: 0 0 0 1px var(--navy), 0 6px 18px rgba(20,40,160,.10); }
+.kpi.sel::after { content: '상세 보기 중'; position: absolute; top: 14px; right: 16px; font-size: 10.5px; font-weight: 700; color: var(--navy); }
+.kpi-top { display: flex; align-items: center; gap: 8px; }
+.kpi-name { font-size: 13px; font-weight: 700; }
+.kpi-en { font-size: 10.5px; color: var(--text3); font-weight: 500; letter-spacing: .02em; text-transform: uppercase; }
+.badge { margin-left: auto; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 3px; }
+.badge.ok { color: var(--navy); background: var(--navy-bg); }
+.badge.warn { color: var(--amber); background: var(--amber-bg); }
+.badge.bad { color: var(--red); background: var(--red-bg); }
+.kpi.sel .badge { display: none; }
+.kpi-body { display: flex; align-items: flex-end; justify-content: space-between; margin-top: 12px; gap: 10px; }
+.kpi-val { font-size: 32px; font-weight: 700; letter-spacing: -.03em; line-height: 1; }
+.kpi-val small { font-size: 14px; font-weight: 600; color: var(--text2); margin-left: 3px; letter-spacing: 0; }
+.kpi-val.txt { font-size: 26px; }
+.kpi-delta { font-size: 11.5px; font-weight: 600; margin-top: 8px; color: var(--text2); }
+.up { color: var(--navy); } .down { color: var(--red); }
+.kpi-foot { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 10px; font-size: 11px; color: var(--text3); }
+.bar { flex: 1; height: 4px; background: var(--line); border-radius: 2px; position: relative; overflow: visible; }
+.bar > i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 2px; background: var(--navy); }
+.bar > em { position: absolute; top: -3px; width: 2px; height: 10px; background: var(--text); }
+.kpi-foot b { color: var(--text2); font-weight: 600; }
+
+/* ─── Detail ─────────────────────────────── */
+.detail { margin-top: 28px; background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); }
+.detail-head { padding: 18px 24px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 18px; }
+.crumb { font-size: 11.5px; color: var(--text3); }
+.detail-title { font-size: 20px; font-weight: 800; letter-spacing: -.02em; display: flex; align-items: baseline; gap: 12px; }
+.detail-title .v { color: var(--red); font-size: 20px; }
+.detail-title .t { font-size: 12px; font-weight: 500; color: var(--text3); }
+.conn { display: flex; gap: 6px; align-items: center; font-size: 11px; color: var(--text3); }
+.chip { border: 1px solid var(--line-strong); border-radius: 3px; padding: 3px 8px; font-size: 11px; font-weight: 600; color: var(--text2); display: flex; gap: 6px; align-items: center; }
+.btn { border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 7px 14px; font-size: 12px; font-weight: 600; color: var(--text2); background: #fff; }
+.btn.primary { background: var(--navy); color: #fff; border-color: var(--navy); }
+
+.dgrid { display: grid; grid-template-columns: repeat(12, 1fr); }
+.panel { padding: 20px 24px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.panel.last { border-right: 0; }
+.panel h3 { font-size: 13px; font-weight: 700; margin-bottom: 2px; display: flex; align-items: center; gap: 8px; }
+.panel h3 .src-tag { font-size: 10px; font-weight: 600; color: var(--text3); border: 1px solid var(--line); padding: 1px 6px; border-radius: 3px; margin-left: auto; }
+.panel .sub { font-size: 11.5px; color: var(--text3); margin-bottom: 14px; }
+.c8 { grid-column: span 8; } .c4 { grid-column: span 4; } .c6 { grid-column: span 6; } .c5 { grid-column: span 5; } .c7 { grid-column: span 7; }
+.legend { display: flex; gap: 14px; font-size: 11px; color: var(--text2); margin-bottom: 8px; }
+.legend i { display: inline-block; width: 10px; height: 3px; margin-right: 5px; vertical-align: 3px; }
+svg text { font-family: 'Inter', 'Noto Sans KR', sans-serif; }
+
+/* stat mini row */
+.mini { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--line); }
+.mini div { padding: 14px 24px; border-right: 1px solid var(--line); }
+.mini div:last-child { border-right: 0; }
+.mini span { display: block; font-size: 11px; color: var(--text3); margin-bottom: 5px; }
+.mini b { font-size: 20px; font-weight: 700; letter-spacing: -.02em; }
+.mini b small { font-size: 12px; color: var(--text2); font-weight: 600; margin-left: 2px; }
+.mini em { font-style: normal; font-size: 11px; font-weight: 600; margin-left: 8px; }
+
+/* table */
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { text-align: left; font-size: 11px; color: var(--text3); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--line-strong); }
+td { padding: 9px 10px; border-bottom: 1px solid var(--line); color: var(--text2); }
+td.eq { font-weight: 700; color: var(--text); }
+td.mono, .mono { font-family: var(--mono); font-size: 11.5px; }
+.st { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 3px; }
+.st.run { color: var(--red); background: var(--red-bg); }
+.st.done { color: var(--text3); background: var(--bg); }
+.st.pm { color: var(--navy); background: var(--navy-bg); }
+tr.new td { background: #FFFAFA; }
+
+/* insight */
+.insight { display: flex; flex-direction: column; gap: 10px; }
+.ins { border-left: 3px solid var(--navy); padding: 4px 0 4px 12px; }
+.ins.r { border-left-color: var(--red); }
+.ins b { display: block; font-size: 12.5px; margin-bottom: 3px; }
+.ins p { font-size: 11.5px; color: var(--text2); line-height: 1.55; }
+.foot-note { padding: 12px 24px; font-size: 11px; color: var(--text3); display: flex; gap: 20px; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark">K2</div>
+    <div>
+      <div class="brand-title">Photo KPI Board</div>
+      <div class="brand-sub">K2 Photo 그룹 핵심 KPI 실시간 현황</div>
+    </div>
+  </div>
+  <div class="seg"><span class="on">실시간</span><span>일간</span><span>주간</span><span>월간</span></div>
+  <div class="select">전체 라인</div>
+  <div class="select">전체 공정 (Scanner · Track)</div>
+  <div class="spacer"></div>
+  <div class="sources">
+    <span class="src"><i class="dot"></i>MES</span>
+    <span class="src"><i class="dot"></i>EES</span>
+    <span class="src"><i class="dot"></i>PMS</span>
+    <span class="src"><i class="dot"></i>TPSS</span>
+    <span class="src"><i class="dot warn"></i>FDC 지연 12s</span>
+  </div>
+  <div class="live"><b>LIVE</b><span class="num">2026.10.29 22:14:03</span></div>
+</header>
+
+<main class="page">
+  <div class="section-head">
+    <h2>핵심 KPI</h2>
+    <span class="meta">B조 (14:00–22:00) 기준 · 목표 대비 · 전일 동시간 대비</span>
+    <div class="summary">
+      <span><i style="background:var(--navy)"></i>달성 5</span>
+      <span><i style="background:var(--amber)"></i>주의 2</span>
+      <span><i style="background:var(--red)"></i>미달 1</span>
+    </div>
+  </div>
+
+  <section class="kpi-grid" id="kpis"></section>
+
+  <!-- ─── 선택된 KPI 상세 (설비 정지로스) ─── -->
+  <section class="detail">
+    <div class="detail-head">
+      <div>
+        <div class="crumb">핵심 KPI › 상세 분석</div>
+        <div class="detail-title">설비 정지로스 <span class="v num">4.2%</span><span class="t">목표 ≤ 3.5% · 전일 대비 +0.6%p</span></div>
+      </div>
+      <div class="spacer"></div>
+      <div class="conn">연결 데이터
+        <span class="chip"><i class="dot"></i>EES 설비상태</span>
+        <span class="chip"><i class="dot"></i>MES 이벤트</span>
+        <span class="chip"><i class="dot"></i>PMS 작업이력</span>
+      </div>
+      <span class="btn">Excel 내보내기</span>
+      <span class="btn primary">분석 열기</span>
+    </div>
+
+    <div class="mini">
+      <div><span>총 정지시간</span><b class="num">47.6<small>h</small></b><em class="down">▲ 6.1h</em></div>
+      <div><span>정지 건수</span><b class="num">38<small>건</small></b><em class="down">▲ 5</em></div>
+      <div><span>MTTR</span><b class="num">1.25<small>h</small></b><em class="up">▼ 0.08h</em></div>
+      <div><span>현재 정지 설비</span><b class="num" style="color:var(--red)">3<small>대</small></b><em style="color:var(--text3)">SCN-07 · TRK-04 · SCN-02</em></div>
+    </div>
+
+    <div class="dgrid">
+      <div class="panel c8">
+        <h3>시간대별 정지로스 추이 <span class="src-tag">EES · 1분 갱신</span></h3>
+        <div class="sub">최근 24시간 · 1시간 단위</div>
+        <div class="legend"><span><i style="background:var(--navy)"></i>정지로스 (%)</span><span><i style="background:var(--navy-4)"></i>전일</span><span><i style="background:var(--red)"></i>목표 3.5%</span></div>
+        <svg id="trend" width="100%" height="220"></svg>
+      </div>
+      <div class="panel c4 last">
+        <h3>원인별 구성 <span class="src-tag">MES 이벤트</span></h3>
+        <div class="sub">정지시간 47.6h 기준</div>
+        <svg id="cause" width="100%" height="240"></svg>
+      </div>
+
+      <div class="panel c5">
+        <h3>설비별 정지시간 Top 10 <span class="src-tag">EES</span></h3>
+        <div class="sub">단위: 시간 · 붉은 표시 = 현재 정지 중</div>
+        <svg id="rank" width="100%" height="270"></svg>
+      </div>
+      <div class="panel c7 last">
+        <h3>설비 × 시간 정지 히트맵 <span class="src-tag">EES</span></h3>
+        <div class="sub">셀 농도 = 해당 시간 정지 분(min)</div>
+        <svg id="heat" width="100%" height="270"></svg>
+      </div>
+
+      <div class="panel c8" style="border-bottom:0">
+        <h3>실시간 정지 이벤트 <span class="src-tag">MES · 실시간 스트림</span></h3>
+        <div class="sub">최근 이벤트 순 · 신규 이벤트 강조</div>
+        <table>
+          <thead><tr><th>발생</th><th>설비</th><th>유형</th><th>원인 코드</th><th>내용</th><th>지속</th><th>상태</th><th>담당</th></tr></thead>
+          <tbody id="events"></tbody>
+        </table>
+      </div>
+      <div class="panel c4 last" style="border-bottom:0">
+        <h3>분석 요약 <span class="src-tag">AI Insight</span></h3>
+        <div class="sub">연결 데이터 기반 자동 요약</div>
+        <div class="insight">
+          <div class="ins r"><b>SCN-07 반복 정지 (Stage Error)</b><p>최근 24h 동일 코드 E-4127 4회 발생, 정지시간 6.8h로 전체의 14%. 직전 PM 이후 38h 경과 — Stage 캘리브레이션 점검 권고.</p></div>
+          <div class="ins r"><b>18–20시 정지로스 집중</b><p>교대 전후 2시간 정지로스 6.1%로 평균 대비 1.5배. 대기(Wait Tech) 비중 높음.</p></div>
+          <div class="ins"><b>BM 비중 감소 추세</b><p>BM 비중 전주 대비 −4.2%p. PM 자동화 적용 설비(TRK 계열) MTTR 0.9h로 개선.</p></div>
+        </div>
+      </div>
+    </div>
+    <div class="foot-note"><span>데이터 원천: EES / MES / PMS</span><span>정지로스 = 비계획 정지시간 ÷ 캘린더 시간</span><span>최종 동기화 22:14:03</span></div>
+  </section>
+</main>
+
+<script>
+// ─── Mock data ────────────────────────────────
+const KPIS = [
+  { name: '설비 정지로스', en: 'Down Loss', val: '4.2', unit: '%', target: '≤ 3.5%', pct: 83, delta: '▲ 0.6%p 전일', dc: 'down', st: 'bad', sel: true, spark: [3.1,3.4,3.2,3.6,3.9,3.5,4.0,4.4,4.2] },
+  { name: '가동률', en: 'Utilization', val: '87.6', unit: '%', target: '85.0%', pct: 100, delta: '▲ 1.2%p 전일', dc: 'up', st: 'ok', spark: [84,85,85.5,86,85.8,86.9,87.2,87,87.6] },
+  { name: 'PM 자동화율', en: 'PM Automation', val: '72.4', unit: '%', target: '75.0%', pct: 96, delta: '▲ 2.1%p 전월', dc: 'up', st: 'warn', spark: [64,66,67,68,69,70,70.5,71.8,72.4] },
+  { name: 'MOVE량', en: 'Moves', val: '48,320', unit: 'mv', target: '46,000', pct: 100, delta: '▲ 3.4% 전일', dc: 'up', st: 'ok', spark: [44,45,44.5,46,46.8,47,47.5,48,48.3] },
+  { name: '병목설비', en: 'Bottleneck', val: 'SCN-07', unit: '', txt: true, target: '대기 WIP 1,240 wf', pct: 62, delta: '병목 후보 3대 · 대기 4.1h', dc: 'down', st: 'warn', spark: [700,820,900,880,1020,1100,1180,1210,1240] },
+  { name: '생산량', en: 'Wafer Out', val: '12,840', unit: 'wf', target: '12,500', pct: 100, delta: '▲ 2.7% 전일', dc: 'up', st: 'ok', spark: [11.9,12.1,12.0,12.3,12.4,12.2,12.6,12.7,12.84] },
+  { name: 'TPSS', en: 'TPSS Index', val: '94.1', unit: '%', target: '92.0%', pct: 100, delta: '▲ 0.8%p 전주', dc: 'up', st: 'ok', spark: [91,91.5,92.2,92,92.8,93.1,93.4,93.9,94.1] },
+  { name: '재작업률', en: 'Rework Rate', val: '1.3', unit: '%', target: '≤ 1.5%', pct: 100, delta: '▼ 0.2%p 전일', dc: 'up', st: 'ok', spark: [1.8,1.7,1.6,1.65,1.5,1.45,1.4,1.35,1.3] },
+];
+const BADGE = { ok: '달성', warn: '주의', bad: '미달' };
+
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, parent, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function sparkSVG(data, color) {
+  const w = 96, h = 34, mn = Math.min(...data), mx = Math.max(...data);
+  const pts = data.map((v, i) => [i / (data.length - 1) * w, h - 3 - (v - mn) / (mx - mn || 1) * (h - 6)]);
+  const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  const last = pts[pts.length - 1];
+  return `<svg width="${w}" height="${h}"><path d="${d} L${w} ${h} L0 ${h}Z" fill="${color}" opacity=".08"/><path d="${d}" fill="none" stroke="${color}" stroke-width="1.6"/><circle cx="${last[0]}" cy="${last[1]}" r="2.6" fill="${color}"/></svg>`;
+}
+
+// ─── KPI cards ────────────────────────────────
+document.getElementById('kpis').innerHTML = KPIS.map(k => {
+  const color = k.st === 'bad' ? '#D63232' : '#1428A0';
+  return `<article class="kpi ${k.sel ? 'sel' : ''}">
+    <div class="kpi-top"><span class="kpi-name">${k.name}</span><span class="kpi-en">${k.en}</span><span class="badge ${k.st}">${BADGE[k.st]}</span></div>
+    <div class="kpi-body">
+      <div>
+        <div class="kpi-val num ${k.txt ? 'txt' : ''}" style="${k.st === 'bad' ? 'color:var(--red)' : ''}">${k.val}<small>${k.unit}</small></div>
+        <div class="kpi-delta ${k.dc}">${k.delta}</div>
+      </div>
+      ${sparkSVG(k.spark, color)}
+    </div>
+    <div class="kpi-foot"><span>목표 <b>${k.target}</b></span><div class="bar"><i style="width:${k.pct}%;background:${k.st === 'bad' ? 'var(--red)' : k.st === 'warn' ? 'var(--amber)' : 'var(--navy)'}"></i></div><b class="num">${k.pct}%</b></div>
+  </article>`;
+}).join('');
+
+// ─── Trend chart ────────────────────────────────
+(function () {
+  const svg = document.getElementById('trend');
+  const W = svg.clientWidth, H = 220, L = 34, R = 10, T = 10, B = 24;
+  const today = [2.8,2.6,3.0,3.3,3.1,2.9,3.4,3.8,3.6,3.2,3.5,3.9,4.1,3.7,3.9,4.3,4.6,5.2,6.4,5.9,4.8,4.4,4.1,4.2];
+  const yest  = [3.0,2.9,3.1,3.0,3.2,3.4,3.3,3.5,3.2,3.4,3.6,3.5,3.3,3.6,3.7,3.5,3.9,4.2,4.6,4.4,3.9,3.7,3.6,3.6];
+  const ymax = 7, x = i => L + i / 23 * (W - L - R), y = v => T + (1 - v / ymax) * (H - T - B);
+  for (let v = 0; v <= 7; v++) {
+    el('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: '#EEF0F4' }, svg);
+    if (v % 1 === 0) el('text', { x: L - 8, y: y(v) + 3.5, 'text-anchor': 'end', 'font-size': 10, fill: '#8B92A1' }, svg, v);
+  }
+  for (let i = 0; i < 24; i += 3) el('text', { x: x(i), y: H - 6, 'text-anchor': 'middle', 'font-size': 10, fill: '#8B92A1' }, svg, String((22 + i + 1) % 24).padStart(2, '0') + ':00');
+  el('rect', { x: x(17), y: T, width: x(20) - x(17), height: H - T - B, fill: '#D63232', opacity: .05 }, svg);
+  el('text', { x: x(18.5), y: T + 12, 'text-anchor': 'middle', 'font-size': 10, fill: '#D63232', 'font-weight': 600 }, svg, '교대 구간 급증');
+  el('line', { x1: L, x2: W - R, y1: y(3.5), y2: y(3.5), stroke: '#D63232', 'stroke-dasharray': '4 3', 'stroke-width': 1.2 }, svg);
+  const path = a => a.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ');
+  el('path', { d: path(yest), fill: 'none', stroke: '#C9D1EE', 'stroke-width': 1.6 }, svg);
+  el('path', { d: path(today) + ` L${x(23)} ${y(0)} L${x(0)} ${y(0)}Z`, fill: '#1428A0', opacity: .06 }, svg);
+  el('path', { d: path(today), fill: 'none', stroke: '#1428A0', 'stroke-width': 2.2 }, svg);
+  today.forEach((v, i) => { if (v > 3.5) el('circle', { cx: x(i), cy: y(v), r: 2.6, fill: '#fff', stroke: '#D63232', 'stroke-width': 1.5 }, svg); });
+  el('circle', { cx: x(23), cy: y(4.2), r: 4, fill: '#1428A0' }, svg);
+  el('rect', { x: x(23) - 46, y: y(4.2) - 30, width: 44, height: 20, rx: 3, fill: '#111318' }, svg);
+  el('text', { x: x(23) - 24, y: y(4.2) - 16.5, 'text-anchor': 'middle', 'font-size': 11, fill: '#fff', 'font-weight': 700 }, svg, '4.2%');
+})();
+
+// ─── Cause breakdown (horizontal bars) ────────────────────────────────
+(function () {
+  const svg = document.getElementById('cause');
+  const W = svg.clientWidth;
+  const data = [['BM (고장)', 18.4, '#1428A0'], ['대기 (Wait Tech)', 11.2, '#3B5BC0'], ['PM 지연', 8.1, '#8A9AD6'], ['Setup / Recipe', 5.6, '#C9D1EE'], ['자재 · 기타', 4.3, '#DDE1EA']];
+  const tot = data.reduce((s, d) => s + d[1], 0);
+  let cx = 0;
+  data.forEach(d => { const w = d[1] / tot * W; el('rect', { x: cx, y: 0, width: Math.max(w - 2, 1), height: 16, fill: d[2] }, svg); cx += w; });
+  data.forEach((d, i) => {
+    const yy = 44 + i * 39;
+    el('rect', { x: 0, y: yy - 9, width: 10, height: 10, fill: d[2], rx: 2 }, svg);
+    el('text', { x: 18, y: yy, 'font-size': 12, fill: '#111318', 'font-weight': 600 }, svg, d[0]);
+    el('text', { x: W, y: yy, 'text-anchor': 'end', 'font-size': 12, fill: '#111318', 'font-weight': 700 }, svg, d[1].toFixed(1) + 'h');
+    el('text', { x: W - 50, y: yy, 'text-anchor': 'end', 'font-size': 11, fill: '#8B92A1' }, svg, (d[1] / tot * 100).toFixed(0) + '%');
+    el('rect', { x: 18, y: yy + 8, width: W - 18, height: 4, fill: '#F0F2F6', rx: 2 }, svg);
+    el('rect', { x: 18, y: yy + 8, width: (W - 18) * d[1] / data[0][1], height: 4, fill: d[2] === '#DDE1EA' ? '#B8BECB' : d[2], rx: 2 }, svg);
+  });
+})();
+
+// ─── Equipment ranking ────────────────────────────────
+const EQ = [['SCN-07', 6.8, 1], ['TRK-04', 5.9, 1], ['SCN-02', 5.1, 1], ['SCN-11', 4.4, 0], ['TRK-09', 3.9, 0], ['SCN-05', 3.6, 0], ['TRK-01', 3.1, 0], ['SCN-09', 2.7, 0], ['TRK-06', 2.2, 0], ['SCN-03', 1.8, 0]];
+(function () {
+  const svg = document.getElementById('rank');
+  const W = svg.clientWidth, L = 60, R = 36, rowH = 26;
+  EQ.forEach((d, i) => {
+    const yy = 4 + i * rowH, w = (W - L - R) * d[1] / 7;
+    el('text', { x: 0, y: yy + 13, 'font-size': 11.5, fill: '#111318', 'font-weight': 700, 'font-family': 'JetBrains Mono' }, svg, d[0]);
+    el('rect', { x: L, y: yy + 3, width: W - L - R, height: 14, fill: '#F4F5F8', rx: 2 }, svg);
+    el('rect', { x: L, y: yy + 3, width: w, height: 14, fill: d[2] ? '#D63232' : i < 5 ? '#1428A0' : '#8A9AD6', rx: 2 }, svg);
+    el('text', { x: L + w + 6, y: yy + 14, 'font-size': 11, fill: '#4B5160', 'font-weight': 600 }, svg, d[1].toFixed(1));
+  });
+})();
+
+// ─── Heatmap ────────────────────────────────
+(function () {
+  const svg = document.getElementById('heat');
+  const W = svg.clientWidth, L = 60, T = 4, B = 22, rows = EQ.length, cols = 24;
+  const cw = (W - L) / cols, ch = (270 - T - B) / rows;
+  let seed = 7; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  EQ.forEach((d, r) => {
+    el('text', { x: 0, y: T + r * ch + ch / 2 + 4, 'font-size': 11, fill: '#111318', 'font-weight': 600, 'font-family': 'JetBrains Mono' }, svg, d[0]);
+    for (let c = 0; c < cols; c++) {
+      let v = rnd() < 0.62 ? 0 : rnd() * 30 * (d[1] / 6);
+      if (c >= 17 && c <= 19) v += rnd() * 25;
+      if (d[2] && c >= 21) v = 45 + rnd() * 15;
+      const a = Math.min(v / 60, 1);
+      const fill = v === 0 ? '#F4F5F8' : (d[2] && c >= 21 ? `rgba(214,50,50,${0.35 + a * 0.6})` : `rgba(20,40,160,${0.12 + a * 0.85})`);
+      el('rect', { x: L + c * cw + 1, y: T + r * ch + 1, width: cw - 2, height: ch - 2, fill, rx: 2 }, svg);
+    }
+  });
+  for (let c = 0; c < cols; c += 3) el('text', { x: L + c * cw + cw / 2, y: 270 - 6, 'text-anchor': 'middle', 'font-size': 10, fill: '#8B92A1' }, svg, String((22 + c + 1) % 24).padStart(2, '0'));
+})();
+
+// ─── Events table ────────────────────────────────
+const EV = [
+  ['22:11:42', 'SCN-07', 'BM', 'E-4127', 'Wafer Stage Position Error', '진행 03:21', 'run', '정지중', '김민수', 1],
+  ['22:06:18', 'TRK-04', 'BM', 'T-2208', 'Coater Cup Exhaust Low', '진행 08:45', 'run', '정지중', '이서연', 1],
+  ['21:52:09', 'SCN-02', '대기', 'W-0103', 'Tech 대기 (교대)', '진행 22:54', 'run', '정지중', '박준혁', 0],
+  ['21:30:55', 'TRK-09', 'PM', 'PM-W02', 'Weekly PM 지연 (부품 대기)', '41m', 'pm', 'PM', '최지은', 0],
+  ['20:47:31', 'SCN-11', 'BM', 'E-3051', 'Reticle Loader Fault', '1h 12m', 'done', '복구', '정우진', 0],
+  ['19:58:02', 'SCN-07', 'BM', 'E-4127', 'Wafer Stage Position Error', '1h 34m', 'done', '복구', '김민수', 0],
+];
+document.getElementById('events').innerHTML = EV.map(e =>
+  `<tr class="${e[9] ? 'new' : ''}"><td class="mono">${e[0]}</td><td class="eq mono">${e[1]}</td><td>${e[2]}</td><td class="mono">${e[3]}</td><td>${e[4]}</td><td class="mono">${e[5]}</td><td><span class="st ${e[6]}">${e[7]}</span></td><td>${e[8]}</td></tr>`
+).join('');
+</script>
+</body>
+</html>
