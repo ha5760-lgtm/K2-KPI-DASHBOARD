@@ -179,7 +179,8 @@ def card(k, process, labels=None):
     idx = [i for i, v in enumerate(vals) if v is not None]
     target = _target(k, process)
     c = {"id": k["id"], "kind": "custom", "category": k["category"], "name": k["name"], "en": k.get("en", ""),
-         "unit": k["unit"], "demo": k.get("demo", False), "target": target, "text": False}
+         "unit": k["unit"], "demo": k.get("demo", False), "target": target, "text": False,
+         "hidden": bool(k.get("hidden"))}
     tgt_txt = "없음" if target is None else ("≤ " if k["lower"] else "") + _fmt_unit(k, target)
     c["target_text"] = tgt_txt
     if not idx:
@@ -209,8 +210,9 @@ def overview(process):
     cats = []
     for cat in data["categories"]:
         cards = [card(k, process, labels) for k in data["kpis"] if k["category"] == cat["id"]]
+        shown = [c for c in cards if not c["hidden"]]
         cats.append({**cat, "cards": cards,
-                     "summary": {s: sum(1 for c in cards if c["status"] == s) for s in ("ok", "warn", "bad", "none")}})
+                     "summary": {s: sum(1 for c in shown if c["status"] == s) for s in ("ok", "warn", "bad", "none")}})
     return {"process": process, "categories": cats, "periods": labels}
 
 
@@ -348,6 +350,8 @@ def _clean_def(body, data, partial=False):
         if agg not in ("avg", "sum"):
             raise ValidationError("집계 방식은 avg 또는 sum")
         out["agg"] = agg
+    if "hidden" in body:
+        out["hidden"] = bool(body.get("hidden"))
     for f, n in (("description", 200), ("owner", 40)):
         if f in body:
             out[f] = (body.get(f) or "").strip()[:n]
@@ -383,7 +387,6 @@ def update(kid, body):
         data = _load()
         k = _find(data, kid)
         k.update(_clean_def(body, data, partial=True))
-        _prune_categories(data)
         _save(data)
 
 
@@ -392,15 +395,73 @@ def delete(kid):
         data = _load()
         _find(data, kid)
         data["kpis"] = [k for k in data["kpis"] if k["id"] != kid]
-        _prune_categories(data)
         _save(data)
 
 
-def _prune_categories(data):
-    """기본 카테고리는 유지, 사용자가 만든 빈 카테고리는 제거."""
-    used = {k["category"] for k in data["kpis"]}
-    keep = {c["id"] for c in DEFAULT_CATEGORIES}
-    data["categories"] = [c for c in data["categories"] if c["id"] in used or c["id"] in keep]
+def arrange(categories):
+    """카테고리 순서와 각 카테고리의 KPI 순서/소속을 한 번에 저장.
+    categories: [{"id": "velocity", "kpis": ["velocity", "wph_gain", ...]}, ...] — 모든 카테고리 · KPI 를 정확히 한 번씩."""
+    with _lock:
+        data = _load()
+        cat_ids = [c.get("id") for c in categories]
+        if sorted(cat_ids) != sorted(c["id"] for c in data["categories"]):
+            raise ValidationError("카테고리 목록이 현재와 다릅니다. 새로고침 후 다시 시도하세요")
+        kpi_ids = [kid for c in categories for kid in c.get("kpis", [])]
+        if sorted(kpi_ids) != sorted(k["id"] for k in data["kpis"]):
+            raise ValidationError("KPI 목록이 현재와 다릅니다. 새로고침 후 다시 시도하세요")
+        by_cat = {c["id"]: c for c in data["categories"]}
+        by_kpi = {k["id"]: k for k in data["kpis"]}
+        data["categories"] = [by_cat[cid] for cid in cat_ids]
+        new_kpis = []
+        for c in categories:
+            for kid in c.get("kpis", []):
+                by_kpi[kid]["category"] = c["id"]
+                new_kpis.append(by_kpi[kid])
+        data["kpis"] = new_kpis
+        _save(data)
+
+
+def create_category(body):
+    name = (body.get("name") or "").strip()
+    if not name or len(name) > 30:
+        raise ValidationError("카테고리 이름은 1~30자")
+    with _lock:
+        data = _load()
+        if any(c["name"] == name for c in data["categories"]):
+            raise ValidationError("같은 이름의 카테고리가 있습니다")
+        cid = "cat-" + uuid.uuid4().hex[:6]
+        data["categories"].append({"id": cid, "name": name, "en": (body.get("en") or "").strip()[:40]})
+        _save(data)
+        return cid
+
+
+def update_category(cid, body):
+    with _lock:
+        data = _load()
+        cat = next((c for c in data["categories"] if c["id"] == cid), None)
+        if cat is None:
+            raise KeyError(cid)
+        if "name" in body:
+            name = (body.get("name") or "").strip()
+            if not name or len(name) > 30:
+                raise ValidationError("카테고리 이름은 1~30자")
+            if any(c["name"] == name and c["id"] != cid for c in data["categories"]):
+                raise ValidationError("같은 이름의 카테고리가 있습니다")
+            cat["name"] = name
+        if "en" in body:
+            cat["en"] = (body.get("en") or "").strip()[:40]
+        _save(data)
+
+
+def delete_category(cid):
+    with _lock:
+        data = _load()
+        if not any(c["id"] == cid for c in data["categories"]):
+            raise KeyError(cid)
+        if any(k["category"] == cid for k in data["kpis"]):
+            raise ValidationError("KPI 가 남아 있는 카테고리는 삭제할 수 없습니다. 먼저 KPI 를 옮기거나 삭제하세요")
+        data["categories"] = [c for c in data["categories"] if c["id"] != cid]
+        _save(data)
 
 
 def set_value(kid, process, period, value):

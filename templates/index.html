@@ -28,11 +28,23 @@
   </div>
   <div class="spacer"></div>
   <div class="sources" id="sources"></div>
+  <button class="btn" id="editBtn" data-action="edit-mode" title="KPI 순서 · 카테고리 · 표시 · 이름/목표 변경">레이아웃 편집</button>
   <button class="icon-btn" id="themeBtn" data-action="theme" title="다크 / 라이트 테마 전환" aria-label="테마 전환"></button>
   <div class="live" id="live"><b>연결 중</b><span class="num" id="updated">--</span></div>
 </header>
 
 <nav class="proc-tabs" id="procTabs" aria-label="공정 선택"></nav>
+
+<div class="edit-bar" id="editBar" hidden>
+  <div class="edit-bar-in">
+    <b>레이아웃 편집 중</b>
+    <span><em>끌어서</em> 순서 · 카테고리 이동 · 화살표 한 칸 이동 · 눈 표시/숨김 · 연필 이름/목표 수정 — 즉시 저장, 모든 사용자에게 반영</span>
+    <div class="spacer"></div>
+    <button class="btn sm" data-action="cat-add">+ 카테고리 추가</button>
+    <button class="btn sm" data-action="layout-reset">실시간 KPI 기본 배치로</button>
+    <button class="btn sm primary" data-action="edit-mode">편집 완료</button>
+  </div>
+</div>
 
 <main class="page">
   <div class="section-head">
@@ -80,6 +92,39 @@
   </form>
 </div>
 
+<div class="modal-bg" id="coreModal" hidden>
+  <form class="modal" id="coreForm" autocomplete="off">
+    <h3 id="coreTitle">실시간 KPI 수정</h3>
+    <div class="form">
+      <label>표시 이름 <input name="name" maxlength="40" required></label>
+      <label>영문명 <input name="en" maxlength="40"></label>
+      <label class="full">목표 / 기준 <span class="hint" id="coreTargetHint"></span><input name="target" type="number" step="any"></label>
+      <div class="form-err" id="coreErr" hidden></div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn" data-action="core-reset" style="margin-right:auto">기본값 복원</button>
+      <button type="button" class="btn" data-action="close">취소</button>
+      <button type="submit" class="btn primary">저장</button>
+    </div>
+  </form>
+</div>
+
+<div class="modal-bg" id="catModal" hidden>
+  <form class="modal" id="catForm" autocomplete="off">
+    <h3 id="catTitle">카테고리 추가</h3>
+    <div class="form">
+      <label>카테고리 이름 <input name="name" maxlength="30" required placeholder="예: 품질"></label>
+      <label>영문명 <input name="en" maxlength="40" placeholder="예: Quality"></label>
+      <div class="form-err" id="catErr" hidden></div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn" data-action="close">취소</button>
+      <button type="submit" class="btn primary">저장</button>
+    </div>
+  </form>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
 <div class="tooltip" id="tooltip" hidden></div>
 
 <script src="/static/js/main.js"></script>

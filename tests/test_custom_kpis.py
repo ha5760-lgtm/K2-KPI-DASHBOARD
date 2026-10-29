@@ -46,9 +46,11 @@ def test_create_edit_value_delete_flow():
         assert c.get(f"/api/kpis/{kid}").json()["kpi"]["value"] == 1.6
 
         assert c.delete(f"/api/custom-kpis/{kid}").status_code == 200
-        cats = c.get("/api/custom-kpis").json()["categories"]
-        assert all(cat["name"] != "품질" for cat in cats)  # 빈 사용자 카테고리 제거
         assert c.get(f"/api/kpis/{kid}").status_code == 404
+        cats = c.get("/api/custom-kpis").json()["categories"]
+        cat = next(cat for cat in cats if cat["name"] == "품질")  # 빈 카테고리는 유지 → 명시적으로 삭제
+        assert c.delete(f"/api/custom-categories/{cat['id']}").status_code == 200
+        assert all(x["name"] != "품질" for x in c.get("/api/custom-kpis").json()["categories"])
 
 
 def test_sum_aggregation_and_target():

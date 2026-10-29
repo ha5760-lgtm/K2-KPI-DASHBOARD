@@ -13,6 +13,23 @@
 |---|---|
 | ![공통 KPI](docs/screenshot-common-kpi.png) | ![다크](docs/screenshot-dark.png) |
 
+## 레이아웃 편집
+
+우측 상단 `레이아웃 편집`을 누르면 편집 모드가 된다. 변경은 즉시 서버에 저장되고 접속 중인 모든 화면에 반영된다(그룹 공용 배치).
+
+| 대상 | 할 수 있는 것 |
+|------|---------------|
+| 실시간 KPI 카드 | 끌어서 / ◀ ▶ 로 순서 변경, 눈 아이콘으로 숨김/표시, 연필로 표시 이름 · 영문명 · 목표(기준) 변경, `기본값 복원` |
+| 공통 KPI 항목 | 끌어서 순서 변경 및 **다른 카테고리로 이동**, ▲ ▼ (카테고리 끝에서는 이웃 카테고리로 넘어감), 숨김/표시, 연필로 정의 수정 |
+| 카테고리 | 머리글을 끌어서 / ▲ ▼ 로 순서 변경, 이름 · 영문명 수정, `+ 카테고리 추가`, 빈 카테고리 삭제 |
+
+- 목표 변경은 달성/주의/미달 판정, 추이 목표선, 공정 비교에 바로 반영된다 (MOVE · 생산량은 공정별 일 계획값을 쓰므로 이름만 변경)
+- 숨긴 항목은 편집 모드에서만 흐리게 보이고, 상단 요약 · 공정 탭 미달 개수 집계에서도 빠진다
+- `실시간 KPI 기본 배치로`: 실시간 KPI 의 순서 · 숨김 · 이름 · 목표를 기본값으로 되돌림 (공통 KPI 는 유지)
+- 저장 위치: `data/layout.json` (`KPI_LAYOUT_FILE`), 공통 KPI 배치는 `data/custom_kpis.json`
+
+![레이아웃 편집 모드](docs/screenshot-edit-mode.png)
+
 ## 실시간 KPI
 
 | KPI | 정의 | 목표 | 원천 |
@@ -60,7 +77,8 @@ pytest -q                # API 테스트
 ```
 app.py            FastAPI: 페이지, REST API, WebSocket(구독형 실시간 push)
 data_source.py    실시간 KPI — KPIProvider 인터페이스 + SimulatedProvider(데모 데이터)
-custom_kpis.py    공통 KPI — 정의 · 월별 값 저장(JSON) · 카드/상세 계산
+custom_kpis.py    공통 KPI — 정의 · 월별 값 · 카테고리/배치 저장(JSON) · 카드/상세 계산
+layout.py         화면 배치 — 실시간 KPI 순서 · 숨김 · 이름/목표 변경 저장(JSON)
 templates/        index.html
 static/           css / js / fonts
 tests/            API · 데이터 일관성 테스트
@@ -79,6 +97,12 @@ mockup/           최초 디자인 시안
 | PUT | `/api/custom-kpis/{kpi}` | 정의 수정 |
 | DELETE | `/api/custom-kpis/{kpi}` | 삭제 |
 | PUT | `/api/custom-kpis/{kpi}/values` | `{"process":"photo","period":"2026-10","value":2.4}` (value null = 삭제) |
+| GET | `/api/layout` | 실시간 KPI 순서 · 숨김 · 이름/목표 변경값 · 기본값 |
+| PUT | `/api/layout/core` | `{"order":[...], "hidden":[...]}` |
+| PUT | `/api/layout/core/{kpi}` | `{"name":..., "en":..., "target":...}` 또는 `{"reset":true}` |
+| POST | `/api/layout/reset` | 실시간 KPI 배치 · 내용 기본값으로 |
+| PUT | `/api/custom-layout` | `{"categories":[{"id":"velocity","kpis":[...]}, ...]}` 카테고리 순서 · 소속 · 항목 순서 일괄 저장 |
+| POST / PUT / DELETE | `/api/custom-categories[/{id}]` | 카테고리 추가 · 이름 변경 · (빈 카테고리) 삭제 |
 | GET | `/api/sources` | 연결 데이터 소스 상태 |
 | WS | `/ws` | `{"type":"subscribe","process":"photo","kpi":"downloss"}` 구독 → `kpi_update` 주기 push |
 
@@ -97,6 +121,6 @@ mockup/           최초 디자인 시안
 2. `get_provider()`에 등록 후 `KPI_PROVIDER=<이름>` 환경 변수로 선택
 3. 갱신 주기: `KPI_TICK_SEC` (기본 3초)
 
-인증이 없으므로 공통 KPI 편집은 접속 가능한 누구나 할 수 있다. 사내망 외부 노출 시 인증 추가 필요.
+인증이 없으므로 공통 KPI · 레이아웃 편집은 접속 가능한 누구나 할 수 있다. 사내망 외부 노출 시 인증 추가 필요.
 
 TPSS 지표 정의와 KPI 목표값(`KPIS` 목록)은 실제 기준에 맞게 조정 필요.

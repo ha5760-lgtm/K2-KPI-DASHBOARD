@@ -11,6 +11,11 @@ const state = {
     custom: null,
     detail: null,
     editing: null, // 수정 중인 공통 KPI id (null = 신규)
+    editMode: false, // 레이아웃 편집 모드
+    layout: null, // 실시간 KPI 배치 · 기본값 (/api/layout)
+    drag: null, // 드래그 중인 대상 {type, id}
+    editingCore: null,
+    editingCat: null,
 };
 
 const BADGE = { ok: '달성', warn: '주의', bad: '미달', none: '목표 없음' };
@@ -137,14 +142,17 @@ function allKpiIds() {
 }
 
 async function loadAll({ scroll = false } = {}) {
-    const [procs, cards, custom] = await Promise.all([
+    const [procs, cards, custom, lay] = await Promise.all([
         api('/api/processes'), api(`/api/kpis?process=${state.process}`), api(`/api/custom-kpis?process=${state.process}`),
+        api('/api/layout'),
     ]);
+    state.layout = lay;
     state.processes = procs;
     state.cards = cards;
     state.custom = custom;
     if (!state.kpi || !allKpiIds().includes(state.kpi)) {
-        state.kpi = (cards.cards.find((c) => c.status === 'bad') || cards.cards[0]).id;
+        const shown = cards.cards.filter((c) => !c.hidden);
+        state.kpi = (shown.find((c) => c.status === 'bad') || shown[0]).id;
     }
     renderTabs();
     renderCards();
@@ -199,9 +207,12 @@ function connectWS() {
         state.processes = msg.processes;
         state.cards = msg.cards;
         state.custom = msg.custom;
+        state.layout = msg.layout;
         renderTabs();
-        renderCards();
-        renderCats();
+        if (!state.drag) {
+            renderCards();
+            renderCats();
+        }
         if (msg.detail && msg.detail.kpi.id === state.kpi && msg.detail.process === state.process) {
             state.detail = msg.detail;
             // 값 입력 중에는 상세 영역을 다시 그리지 않음 (입력 내용 보호)
@@ -272,19 +283,25 @@ function renderCards() {
     $('summary').innerHTML = `<span><i style="background:var(--navy)"></i>달성 ${c.summary.ok}</span>`
         + `<span><i style="background:var(--amber)"></i>주의 ${c.summary.warn}</span>`
         + `<span><i style="background:var(--red)"></i>미달 ${c.summary.bad}</span>`;
-    $('kpis').innerHTML = c.cards.map((k) => {
-        const sel = k.id === state.kpi;
+    const edit = state.editMode;
+    $('kpis').innerHTML = c.cards.filter((k) => edit || !k.hidden).map((k) => {
+        const sel = k.id === state.kpi && !edit;
         const color = k.status === 'bad' ? P.red : P.navy;
         const sub = k.sub ? `<span class="kpi-sub">${esc(k.sub)}</span>` : '';
-        return `<button class="kpi ${sel ? 'sel' : ''}" data-kpi="${k.id}" aria-pressed="${sel}">
+        const ctl = edit ? `<div class="edit-ctl">${ICON.grip}<span class="sp"></span>
+              ${ib('left', 'core-move', k.id, '앞으로', 'data-dir="-1"')}${ib('right', 'core-move', k.id, '뒤로', 'data-dir="1"')}
+              ${ib(k.hidden ? 'eyeOff' : 'eye', 'core-hide', k.id, k.hidden ? '다시 표시' : '숨기기')}${ib('pencil', 'core-edit', k.id, '이름 · 목표 수정')}</div>` : '';
+        return `<div class="kpi ${sel ? 'sel' : ''} ${edit ? 'editing' : ''} ${k.hidden ? 'is-hidden' : ''}" data-kpi="${k.id}" data-drag="core"
+            ${edit ? 'draggable="true"' : 'role="button" tabindex="0"'} aria-pressed="${sel}">
+            ${ctl}
             <div class="kpi-top"><div><div class="kpi-name">${esc(k.name)}</div><div class="kpi-en">${esc(k.en)}</div></div>
-              <span class="badge ${sel ? 'sel' : k.status}">${sel ? '선택' : BADGE[k.status]}</span></div>
+              <span class="badge ${sel ? 'sel' : k.hidden ? 'none' : k.status}">${sel ? '선택' : k.hidden ? '숨김' : BADGE[k.status]}</span></div>
             <div class="kpi-val num ${k.text ? 'txt' : ''} ${k.status === 'bad' ? 'bad' : ''}">${esc(k.display)}<small>${esc(k.unit)}</small>${sub}</div>
             <div class="kpi-delta ${k.delta_class}">${esc(k.delta)}</div>
             ${sparkWide(k.spark, color)}
             <div class="kpi-foot"><div class="row"><span>목표 <b>${esc(k.target_text)}</b></span><b class="num">${k.pct}%</b></div>
               <div class="bar"><i class="${k.status}" style="width:${k.pct}%"></i></div></div>
-        </button>`;
+        </div>`;
     }).join('');
 }
 
@@ -294,25 +311,32 @@ function renderCats() {
     if (!cu) return;
     const P = palette();
     $('catList').innerHTML = cu.categories.map((c) => `<option value="${esc(c.name)}">`).join('');
-    $('cats').innerHTML = cu.categories.map((cat) => {
+    const edit = state.editMode;
+    $('cats').innerHTML = cu.categories.map((cat, ci) => {
         const s = cat.summary;
-        const rows = cat.cards.map((k) => {
-            const sel = k.id === state.kpi;
+        const rows = cat.cards.filter((k) => edit || !k.hidden).map((k) => {
+            const sel = k.id === state.kpi && !edit;
             const color = k.status === 'bad' ? P.red : P.navy;
-            return `<button class="ck-row ${sel ? 'sel' : ''}" data-kpi="${esc(k.id)}">
-                <span class="dot ${k.status === 'ok' ? '' : k.status}" title="${BADGE[k.status]}"></span>
+            const ctl = edit ? `<span class="row-ctl">${ib('up', 'row-move', k.id, '위로', 'data-dir="-1"')}${ib('down', 'row-move', k.id, '아래로', 'data-dir="1"')}
+                ${ib(k.hidden ? 'eyeOff' : 'eye', 'row-hide', k.id, k.hidden ? '다시 표시' : '숨기기')}${ib('pencil', 'row-edit', k.id, '내용 수정')}</span>` : '';
+            return `<div class="ck-row ${sel ? 'sel' : ''} ${edit ? 'editing' : ''} ${k.hidden ? 'is-hidden' : ''}" data-kpi="${esc(k.id)}" data-drag="row"
+                ${edit ? 'draggable="true"' : 'role="button" tabindex="0"'}>
+                ${edit ? ICON.grip : ''}<span class="dot ${k.status === 'ok' ? '' : k.status}" title="${BADGE[k.status]}"></span>
                 <span class="ck-name">${esc(k.name)}${k.demo ? '<span class="demo-tag">예시</span>' : ''}<small>${esc(k.en || '')}${k.period ? ` · ${k.period}` : ''}</small></span>
                 <span class="ck-val num ${k.status === 'bad' ? 'bad' : ''}">${esc(k.display)}<small>${k.value == null ? '' : esc(k.unit)}</small></span>
                 ${sparkSmall(k.spark, color)}
                 <span class="ck-meta">목표 ${esc(k.target_text)}${k.status !== 'none' ? ` · ${k.pct}%` : ''}
-                  <span class="d ${k.delta_class}">${esc(k.delta)}</span></span>
-            </button>`;
+                  <span class="d ${k.delta_class}">${esc(k.delta)}</span></span>${ctl}
+            </div>`;
         }).join('');
-        return `<div class="cat">
-            <div class="cat-head"><div><h3>${esc(cat.name)}</h3>${cat.en ? `<div class="en">${esc(cat.en)}</div>` : ''}</div>
+        const headCtl = edit ? `<span class="cat-ctl">${ib('up', 'cat-move', cat.id, '앞으로', 'data-dir="-1"')}${ib('down', 'cat-move', cat.id, '뒤로', 'data-dir="1"')}
+              ${ib('pencil', 'cat-edit', cat.id, '카테고리 이름 수정')}${cat.cards.length ? '' : ib('trash', 'cat-delete', cat.id, '빈 카테고리 삭제')}</span>` : '';
+        const empty = edit ? 'KPI를 여기로 끌어다 놓거나 + 추가로 만드세요.' : '등록된 KPI가 없습니다. + 추가로 항목을 만드세요.';
+        return `<div class="cat ${edit ? 'editing' : ''}" data-cat="${esc(cat.id)}" data-index="${ci}">
+            <div class="cat-head" ${edit ? 'draggable="true" data-drag="cat"' : ''}>${edit ? ICON.grip : ''}<div><h3>${esc(cat.name)}</h3>${cat.en ? `<div class="en">${esc(cat.en)}</div>` : ''}</div>
               <div class="counts"><span><b class="up">${s.ok}</b> 달성</span><span><b style="color:var(--amber)">${s.warn}</b> 주의</span><span><b class="down">${s.bad}</b> 미달</span></div>
-              <button class="btn sm" data-action="add" data-cat="${esc(cat.name)}">+ 추가</button></div>
-            ${rows || '<div class="cat-empty">등록된 KPI가 없습니다. + 추가로 항목을 만드세요.</div>'}
+              ${headCtl}<button class="btn sm" data-action="add" data-cat="${esc(cat.name)}">+ 추가</button></div>
+            ${rows || `<div class="cat-empty">${empty}</div>`}
         </div>`;
     }).join('');
 }
@@ -673,6 +697,14 @@ function closeModal() {
     state.editing = null;
 }
 
+function closeModals() {
+    closeModal();
+    $('coreModal').hidden = true;
+    $('catModal').hidden = true;
+    state.editingCore = null;
+    state.editingCat = null;
+}
+
 async function submitModal(e) {
     e.preventDefault();
     const f = e.target;
@@ -738,6 +770,331 @@ async function saveCell(input) {
     }
 }
 
+// ─── 레이아웃 편집 (순서 · 카테고리 · 표시 · 이름/목표) ────────────────────────────────
+const ICON = {
+    grip: '<svg class="grip" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>',
+    left: '<path d="M15 6l-6 6 6 6"/>',
+    right: '<path d="M9 6l6 6-6 6"/>',
+    up: '<path d="M6 15l6-6 6 6"/>',
+    down: '<path d="M6 9l6 6 6-6"/>',
+    eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    eyeOff: '<path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
+    pencil: '<path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4"/>',
+    trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+};
+
+function ib(icon, action, id, title, extra = '') {
+    return `<button class="ib" type="button" data-action="${action}" data-id="${esc(id)}" ${extra} title="${esc(title)}" aria-label="${esc(title)}">`
+        + `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[icon]}</svg></button>`;
+}
+
+function setEditMode(on) {
+    state.editMode = on;
+    document.body.classList.toggle('edit-mode', on);
+    $('editBar').hidden = !on;
+    const b = $('editBtn');
+    b.textContent = on ? '편집 완료' : '레이아웃 편집';
+    b.classList.toggle('primary', on);
+    renderCards();
+    renderCats();
+}
+
+function flash(msg, bad = false) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.toggle('bad', bad);
+    t.hidden = false;
+    clearTimeout(flash.timer);
+    flash.timer = setTimeout(() => { t.hidden = true; }, 2200);
+}
+
+async function guarded(fn, okMsg) {
+    try {
+        await fn();
+        if (okMsg) flash(okMsg);
+    } catch (err) {
+        flash(`저장 실패: ${err.message}`, true);
+    }
+    await refreshLists();
+}
+
+async function refreshLists() {
+    const [procs, cards, custom, lay] = await Promise.all([
+        api('/api/processes'), api(`/api/kpis?process=${state.process}`), api(`/api/custom-kpis?process=${state.process}`), api('/api/layout'),
+    ]);
+    Object.assign(state, { processes: procs, cards, custom, layout: lay });
+    renderTabs();
+    renderCards();
+    renderCats();
+    if (state.detail && allKpiIds().includes(state.kpi)) {
+        state.detail = await api(`/api/kpis/${encodeURIComponent(state.kpi)}?process=${state.process}`);
+        renderDetail();
+    }
+}
+
+// 실시간 KPI 순서 · 숨김
+function coreOrder() { return state.cards.cards.map((c) => c.id); }
+function coreHidden() { return state.cards.cards.filter((c) => c.hidden).map((c) => c.id); }
+
+function saveCoreOrder(order, msg = '순서를 저장했습니다') {
+    // 화면에 먼저 반영 후 저장
+    const by = Object.fromEntries(state.cards.cards.map((c) => [c.id, c]));
+    state.cards.cards = order.map((i) => by[i]);
+    renderCards();
+    return guarded(() => sendJSON('/api/layout/core', 'PUT', { order }), msg);
+}
+
+function moveCore(id, dir) {
+    const order = coreOrder();
+    const i = order.indexOf(id), j = i + dir;
+    if (j < 0 || j >= order.length) return;
+    [order[i], order[j]] = [order[j], order[i]];
+    saveCoreOrder(order);
+}
+
+function toggleCoreHidden(id) {
+    const hidden = new Set(coreHidden());
+    if (hidden.has(id)) hidden.delete(id); else hidden.add(id);
+    guarded(() => sendJSON('/api/layout/core', 'PUT', { hidden: [...hidden] }), hidden.has(id) ? '숨겼습니다 (편집 모드에서만 보임)' : '다시 표시합니다');
+}
+
+async function resetLayout() {
+    if (!confirm('실시간 KPI의 순서 · 숨김 · 이름 · 목표를 모두 기본값으로 되돌릴까요?\n(공통 KPI는 그대로 유지됩니다)')) return;
+    guarded(() => api('/api/layout/reset', { method: 'POST' }), '실시간 KPI를 기본 배치로 되돌렸습니다');
+}
+
+// 실시간 KPI 이름 · 목표
+function openCoreModal(id) {
+    const card = state.cards.cards.find((c) => c.id === id);
+    const def = state.layout.defaults[id];
+    const ov = state.layout.overrides[id] || {};
+    const editable = state.layout.editable_target.includes(id);
+    const f = $('coreForm');
+    state.editingCore = id;
+    $('coreTitle').textContent = `실시간 KPI 수정 · ${def.name}`;
+    f.name.value = card.name;
+    f.en.value = card.en;
+    f.target.value = editable ? (ov.target ?? def.target) : '';
+    f.target.disabled = !editable;
+    f.name.placeholder = def.name;
+    $('coreTargetHint').textContent = editable
+        ? `기본 ${fmt(def.target, def.target % 1 ? 1 : 0)}${card.unit === '%' ? '%' : ` ${card.unit || 'wf'}`} · 판정(달성/주의/미달)에 바로 반영`
+        : '공정별 일 계획값을 사용하므로 변경할 수 없습니다';
+    $('coreErr').hidden = true;
+    $('coreModal').hidden = false;
+    f.name.focus();
+}
+
+async function submitCoreModal(e) {
+    e.preventDefault();
+    const f = e.target;
+    const body = { name: f.name.value.trim(), en: f.en.value.trim() };
+    if (!f.target.disabled) body.target = f.target.value === '' ? null : Number(f.target.value);
+    try {
+        await sendJSON(`/api/layout/core/${state.editingCore}`, 'PUT', body);
+        closeModals();
+        flash('실시간 KPI 내용을 저장했습니다');
+        await refreshLists();
+    } catch (err) {
+        $('coreErr').textContent = `저장 실패: ${err.message}`;
+        $('coreErr').hidden = false;
+    }
+}
+
+async function resetCoreKpi() {
+    const id = state.editingCore;
+    await sendJSON(`/api/layout/core/${id}`, 'PUT', { reset: true });
+    closeModals();
+    flash('기본값으로 되돌렸습니다');
+    await refreshLists();
+}
+
+// 공통 KPI 배치
+function arrangement() {
+    return state.custom.categories.map((c) => ({ id: c.id, kpis: c.cards.map((k) => k.id) }));
+}
+
+function saveArrangement(arr, msg = '배치를 저장했습니다') {
+    // 화면에 먼저 반영
+    const cards = Object.fromEntries(state.custom.categories.flatMap((c) => c.cards.map((k) => [k.id, k])));
+    const cats = Object.fromEntries(state.custom.categories.map((c) => [c.id, c]));
+    state.custom.categories = arr.map((a) => ({ ...cats[a.id], cards: a.kpis.map((i) => ({ ...cards[i], category: a.id })) }));
+    renderCats();
+    return guarded(() => sendJSON('/api/custom-layout', 'PUT', { categories: arr }), msg);
+}
+
+function moveRow(id, dir) {
+    const arr = arrangement();
+    const ci = arr.findIndex((c) => c.kpis.includes(id));
+    const list = arr[ci].kpis, i = list.indexOf(id), j = i + dir;
+    if (j >= 0 && j < list.length) {
+        [list[i], list[j]] = [list[j], list[i]];
+    } else {
+        // 카테고리 끝에서 더 이동하면 이웃 카테고리로 넘어감
+        const nci = ci + dir;
+        if (nci < 0 || nci >= arr.length) return;
+        list.splice(i, 1);
+        if (dir > 0) arr[nci].kpis.unshift(id); else arr[nci].kpis.push(id);
+    }
+    saveArrangement(arr);
+}
+
+function moveCat(id, dir) {
+    const arr = arrangement();
+    const i = arr.findIndex((c) => c.id === id), j = i + dir;
+    if (j < 0 || j >= arr.length) return;
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    saveArrangement(arr);
+}
+
+function toggleRowHidden(id) {
+    const card = state.custom.categories.flatMap((c) => c.cards).find((k) => k.id === id);
+    guarded(() => sendJSON(`/api/custom-kpis/${encodeURIComponent(id)}`, 'PUT', { hidden: !card.hidden }),
+        card.hidden ? '다시 표시합니다' : '숨겼습니다 (편집 모드에서만 보임)');
+}
+
+async function editRow(id) {
+    const d = await api(`/api/kpis/${encodeURIComponent(id)}?process=${state.process}`);
+    openModal(d.meta);
+}
+
+// 카테고리
+function openCatModal(id) {
+    const f = $('catForm');
+    f.reset();
+    state.editingCat = id;
+    const cat = id ? state.custom.categories.find((c) => c.id === id) : null;
+    $('catTitle').textContent = cat ? '카테고리 수정' : '카테고리 추가';
+    if (cat) { f.name.value = cat.name; f.en.value = cat.en || ''; }
+    $('catErr').hidden = true;
+    $('catModal').hidden = false;
+    f.name.focus();
+}
+
+async function submitCatModal(e) {
+    e.preventDefault();
+    const f = e.target;
+    const body = { name: f.name.value.trim(), en: f.en.value.trim() };
+    try {
+        if (state.editingCat) await sendJSON(`/api/custom-categories/${state.editingCat}`, 'PUT', body);
+        else await sendJSON('/api/custom-categories', 'POST', body);
+        closeModals();
+        flash('카테고리를 저장했습니다');
+        await refreshLists();
+    } catch (err) {
+        $('catErr').textContent = `저장 실패: ${err.message}`;
+        $('catErr').hidden = false;
+    }
+}
+
+async function deleteCat(id) {
+    const cat = state.custom.categories.find((c) => c.id === id);
+    if (!confirm(`'${cat.name}' 카테고리를 삭제할까요?`)) return;
+    guarded(() => api(`/api/custom-categories/${id}`, { method: 'DELETE' }), '카테고리를 삭제했습니다');
+}
+
+// 드래그 앤 드롭
+function clearDropMarks() {
+    document.querySelectorAll('.drop-before, .drop-after, .drop-into').forEach((n) => n.classList.remove('drop-before', 'drop-after', 'drop-into'));
+}
+
+function dropSide(target, e, horizontal) {
+    const r = target.getBoundingClientRect();
+    return horizontal ? (e.clientX > r.left + r.width / 2 ? 'after' : 'before') : (e.clientY > r.top + r.height / 2 ? 'after' : 'before');
+}
+
+document.addEventListener('dragstart', (e) => {
+    if (!state.editMode) return;
+    const src = e.target.closest?.('[data-drag]');
+    if (!src) return;
+    const type = src.dataset.drag;
+    const id = type === 'cat' ? src.closest('.cat').dataset.cat : src.dataset.kpi;
+    state.drag = { type, id };
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', id);
+    (type === 'cat' ? src.closest('.cat') : src).classList.add('dragging');
+});
+
+document.addEventListener('dragover', (e) => {
+    const d = state.drag;
+    if (!d) return;
+    clearDropMarks();
+    if (d.type === 'core') {
+        const t = e.target.closest('.kpi[data-kpi]');
+        if (!t || t.dataset.kpi === d.id) return;
+        e.preventDefault();
+        t.classList.add(`drop-${dropSide(t, e, true)}`);
+    } else if (d.type === 'row') {
+        const row = e.target.closest('.ck-row');
+        if (row && row.dataset.kpi !== d.id) {
+            e.preventDefault();
+            row.classList.add(`drop-${dropSide(row, e, false)}`);
+            return;
+        }
+        const cat = e.target.closest('.cat');
+        if (cat && !row) { e.preventDefault(); cat.classList.add('drop-into'); }
+    } else if (d.type === 'cat') {
+        const cat = e.target.closest('.cat');
+        if (!cat || cat.dataset.cat === d.id) return;
+        e.preventDefault();
+        cat.classList.add(`drop-${dropSide(cat, e, true)}`);
+    }
+});
+
+document.addEventListener('drop', (e) => {
+    const d = state.drag;
+    if (!d) return;
+    e.preventDefault();
+    clearDropMarks();
+    if (d.type === 'core') {
+        const t = e.target.closest('.kpi[data-kpi]');
+        if (t && t.dataset.kpi !== d.id) {
+            const order = coreOrder().filter((i) => i !== d.id);
+            let at = order.indexOf(t.dataset.kpi);
+            if (dropSide(t, e, true) === 'after') at += 1;
+            order.splice(at, 0, d.id);
+            saveCoreOrder(order);
+        }
+    } else if (d.type === 'row') {
+        const arr = arrangement();
+        arr.forEach((c) => { c.kpis = c.kpis.filter((i) => i !== d.id); });
+        const row = e.target.closest('.ck-row');
+        const cat = e.target.closest('.cat');
+        if (row && row.dataset.kpi !== d.id) {
+            const c = arr.find((x) => x.kpis.includes(row.dataset.kpi));
+            let at = c.kpis.indexOf(row.dataset.kpi);
+            if (dropSide(row, e, false) === 'after') at += 1;
+            c.kpis.splice(at, 0, d.id);
+        } else if (cat) {
+            arr.find((x) => x.id === cat.dataset.cat).kpis.push(d.id);
+        } else {
+            return endDrag();
+        }
+        const toCat = state.custom.categories.find((c) => c.id === arr.find((x) => x.kpis.includes(d.id)).id);
+        saveArrangement(arr, `'${toCat.name}'에 배치했습니다`);
+    } else if (d.type === 'cat') {
+        const cat = e.target.closest('.cat');
+        if (cat && cat.dataset.cat !== d.id) {
+            const arr = arrangement();
+            const moving = arr.find((c) => c.id === d.id);
+            const rest = arr.filter((c) => c.id !== d.id);
+            let at = rest.findIndex((c) => c.id === cat.dataset.cat);
+            if (dropSide(cat, e, true) === 'after') at += 1;
+            rest.splice(at, 0, moving);
+            saveArrangement(rest, '카테고리 순서를 저장했습니다');
+        }
+    }
+    endDrag();
+});
+
+function endDrag() {
+    state.drag = null;
+    clearDropMarks();
+    document.querySelectorAll('.dragging').forEach((n) => n.classList.remove('dragging'));
+}
+document.addEventListener('dragend', endDrag);
+
+
 // ─── Export ────────────────────────────────
 function exportCSV() {
     const d = state.detail;
@@ -782,25 +1139,40 @@ async function copyLink(btn) {
 // ─── Events ────────────────────────────────
 document.addEventListener('click', (e) => {
     if (e.target.closest('.modal')) {
-        if (e.target.closest('[data-action="close"]')) closeModal();
+        if (e.target.closest('[data-action="close"]')) closeModals();
+        else if (e.target.closest('[data-action="core-reset"]')) resetCoreKpi();
         return;
     }
-    if (e.target.id === 'modal') { closeModal(); return; }
+    if (e.target.classList.contains('modal-bg')) { closeModals(); return; }
     const act = e.target.closest('[data-action]');
     if (act) {
         const a = act.dataset.action;
+        const id = act.dataset.id;
+        const dir = Number(act.dataset.dir);
         if (a === 'csv') exportCSV();
         else if (a === 'copy') copyLink(act);
         else if (a === 'theme') setTheme(currentTheme() === 'dark' ? 'light' : 'dark');
         else if (a === 'add') openModal(null, act.dataset.cat);
         else if (a === 'edit') openModal(state.detail.meta);
         else if (a === 'delete') deleteKpi();
+        else if (a === 'edit-mode') setEditMode(!state.editMode);
+        else if (a === 'layout-reset') resetLayout();
+        else if (a === 'cat-add') openCatModal(null);
+        else if (a === 'core-move') moveCore(id, dir);
+        else if (a === 'core-hide') toggleCoreHidden(id);
+        else if (a === 'core-edit') openCoreModal(id);
+        else if (a === 'row-move') moveRow(id, dir);
+        else if (a === 'row-hide') toggleRowHidden(id);
+        else if (a === 'row-edit') editRow(id);
+        else if (a === 'cat-move') moveCat(id, dir);
+        else if (a === 'cat-edit') openCatModal(id);
+        else if (a === 'cat-delete') deleteCat(id);
         return;
     }
     const tab = e.target.closest('[data-proc]');
     if (tab && !tab.matches('input')) { selectProcess(tab.dataset.proc); return; }
     const card = e.target.closest('[data-kpi]');
-    if (card) selectKpi(card.dataset.kpi);
+    if (card && !state.editMode) selectKpi(card.dataset.kpi);
 });
 
 document.addEventListener('change', (e) => {
@@ -812,10 +1184,16 @@ document.addEventListener('focusout', (e) => {
     setTimeout(() => { if (!document.activeElement?.closest('.matrix')) renderDetail(); }, 0);
 });
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !$('modal').hidden) closeModal();
+    if (e.key === 'Escape') closeModals();
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-kpi][role="button"]')) {
+        e.preventDefault();
+        selectKpi(e.target.dataset.kpi);
+    }
     if (e.key === 'Enter' && e.target.matches('.matrix input')) e.target.blur();
 });
 $('kpiForm').addEventListener('submit', submitModal);
+$('coreForm').addEventListener('submit', submitCoreModal);
+$('catForm').addEventListener('submit', submitCatModal);
 
 let resizeTimer;
 window.addEventListener('resize', () => {

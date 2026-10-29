@@ -97,6 +97,13 @@ KPIS = [
      "formula": "TPSS 지표 = TPSS 시스템 설비별 지수 평균"},
 ]
 KPI_BY_ID = {k["id"]: k for k in KPIS}
+
+
+def queue_limit():
+    """병목 판정 기준 (화면에서 목표를 바꾸면 함께 바뀜)."""
+    return int(round(KPI_BY_ID["bottleneck"]["target"]))
+
+
 KPI_CATEGORIES = [{"id": "ops", "name": "설비 운영", "en": "Equipment"},
                   {"id": "prod", "name": "생산", "en": "Production"}]
 
@@ -455,10 +462,10 @@ def build_card(v: View, kid: str) -> dict:
         idx = BUCKETS - 1
         ranked = sorted(v.eq, key=lambda e: v.g["queue"][e][idx], reverse=True)
         top = ranked[0]
-        heavy = [e for e in ranked if v.g["queue"][e][idx] >= QUEUE_LIMIT * .8]
+        heavy = [e for e in ranked if v.g["queue"][e][idx] >= queue_limit() * .8]
         s = next(s for s in v.states if top in s.eq)
         wait = v.g["queue"][top][idx] / s.rate[top]
-        card.update(display=top, text=True, unit="", target_text=f"≤ {QUEUE_LIMIT:,} wf",
+        card.update(display=top, text=True, unit="", target_text=f"≤ {queue_limit():,} wf",
                     delta=f"병목 후보 {len(heavy)}대 · 대기 {wait:.1f}h", delta_class="down" if st != "ok" else "up",
                     sub=v.eq_proc[top]["name"])
         return card
@@ -586,10 +593,10 @@ def _stats(v: View, kid):
         ranked = sorted(v.eq, key=lambda e: g["queue"][e][idx], reverse=True)
         top = ranked[0]
         s = next(s for s in v.states if top in s.eq)
-        heavy = sum(1 for e in ranked if g["queue"][e][idx] >= QUEUE_LIMIT * .8)
+        heavy = sum(1 for e in ranked if g["queue"][e][idx] >= queue_limit() * .8)
         return [
             {"label": "병목 설비", "value": top, "unit": "", "note": v.eq_type[top], "mono": True, "tone": "alert"},
-            {"label": "최대 대기 WIP", "value": fmt(g["queue"][top][idx]), "unit": "wf", "note": f"기준 {QUEUE_LIMIT:,}"},
+            {"label": "최대 대기 WIP", "value": fmt(g["queue"][top][idx]), "unit": "wf", "note": f"기준 {queue_limit():,}"},
             {"label": "예상 대기시간", "value": fmt(g["queue"][top][idx] / s.rate[top], 1), "unit": "h"},
             {"label": "적체 설비 (기준 80%↑)", "value": fmt(heavy), "unit": "대", "tone": "alert" if heavy else "neutral"},
         ]
@@ -677,7 +684,7 @@ def _ranking(v: View, kid):
               "util": ("가동률 하위 10 설비", "%", "최근 24h 평균 · 붉은 표시 = 목표 −10%p 미만"),
               "pm_auto": ("자동화율 하위 10 설비", "%", "이번 주 기준 · 붉은 표시 = 50% 미만"),
               "move": ("설비별 MOVE Top 10", "mv", "최근 24시간 누적"),
-              "bottleneck": ("대기 WIP Top 10", "wf", f"현재 기준 · 붉은 표시 = {QUEUE_LIMIT:,}매 이상"),
+              "bottleneck": ("대기 WIP Top 10", "wf", f"현재 기준 · 붉은 표시 = {queue_limit():,}매 이상"),
               "output": ("설비별 생산량 Top 10", "wf", "최근 24시간 누적"),
               "tpss": ("TPSS 하위 10 설비", "%", "최근 24h 평균 · 붉은 표시 = 85 미만")}
     title, unit, sub = titles[kid]
@@ -691,7 +698,7 @@ def _ranking(v: View, kid):
         if kid == "pm_auto":
             return x < 50
         if kid == "bottleneck":
-            return x >= QUEUE_LIMIT
+            return x >= queue_limit()
         if kid == "tpss":
             return x < 85
         return False
@@ -716,7 +723,7 @@ def _heatmap(v: View, kid, ranking):
         "downloss": ("down", "high_bad", 0, 60, 45, "min", "셀 농도 = 해당 시간 정지 분(min) · 붉은 셀 = 45분 이상"),
         "util": ("util", "low_bad", 40, 100, 60, "%", "셀 농도 = 가동 손실 · 붉은 셀 = 가동률 60% 미만"),
         "move": ("move", "volume", 0, None, None, "mv", "셀 농도 = 시간당 MOVE · 붉은 셀 = 설비 평균 30% 미만 (Stall)"),
-        "bottleneck": ("queue", "high_bad", 0, 1400, QUEUE_LIMIT, "wf", f"셀 농도 = 대기 WIP · 붉은 셀 = {QUEUE_LIMIT:,}매 이상"),
+        "bottleneck": ("queue", "high_bad", 0, max(1400, queue_limit() * 1.4), queue_limit(), "wf", f"셀 농도 = 대기 WIP · 붉은 셀 = {queue_limit():,}매 이상"),
         "output": ("output", "volume", 0, None, None, "wf", "셀 농도 = 시간당 생산량 · 붉은 셀 = 설비 평균 30% 미만 (Stall)"),
         "tpss": ("tpss", "low_bad", 70, 100, 85, "%", "셀 농도 = 기준 대비 부족분 · 붉은 셀 = 85 미만"),
     }[kid]
@@ -788,7 +795,7 @@ def _events(v: View, kid):
             q = v.g["queue"][e][idx]
             prev = v.g["queue"][e][idx - 1]
             reason = "설비 정지" if e in v.down else s.queue_reason[e]
-            sc, lbl = ("run", "적체") if q >= QUEUE_LIMIT else ("pm", "주의") if q >= QUEUE_LIMIT * .8 else ("done", "정상")
+            sc, lbl = ("run", "적체") if q >= queue_limit() else ("pm", "주의") if q >= queue_limit() * .8 else ("done", "정상")
             rows.append({"new": False, "cells": [
                 _cell(e, "eq"), _cell(v.eq_type[e]), _cell(f"{q:,.0f} wf", "mono"),
                 _cell(f"{'▲' if q >= prev else '▼'} {abs(q - prev):,.0f}", "mono"), _cell(f"{q / s.rate[e]:.1f}h", "mono"),
@@ -891,7 +898,8 @@ def _insights(v: View, kid, d):
 class KPIProvider:
     """실데이터 연동 시 이 인터페이스를 구현한다."""
 
-    def processes(self) -> list[dict]:
+    def processes(self, kpis=None) -> list[dict]:
+        """kpis: 상태 집계에 포함할 KPI id 목록 (None = 전체)."""
         raise NotImplementedError
 
     def cards(self, process: str) -> dict:
@@ -921,12 +929,13 @@ class SimulatedProvider(KPIProvider):
             raise KeyError(process)
         return View([self.states[process]], now, PROC_BY_ID[process]["name"])
 
-    def processes(self):
+    def processes(self, kpis=None):
         now = now_kst()
+        kpis = kpis or [k["id"] for k in KPIS]
         out = [{"id": "all", "name": "All", "en": "All"}]
         for p in PROCESSES:
             v = View([self.states[p["id"]]], now, p["name"])
-            st = [build_card(v, k["id"])["status"] for k in KPIS]
+            st = [build_card(v, kid)["status"] for kid in kpis]
             out.append({"id": p["id"], "name": p["name"], "en": p["en"], "eq_count": len(self.states[p["id"]].eq),
                         "down": len(v.down), "status": "bad" if "bad" in st else "warn" if "warn" in st else "ok",
                         "bad": st.count("bad"), "warn": st.count("warn")})

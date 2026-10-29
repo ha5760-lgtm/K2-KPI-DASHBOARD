@@ -18,12 +18,31 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 import custom_kpis
+import layout
 from data_source import KPI_BY_ID, KPI_CATEGORIES, PROC_BY_ID, get_provider
 
 TICK_SEC = float(os.environ.get("KPI_TICK_SEC", "3"))
 
 provider = get_provider()
 templates = Jinja2Templates(directory="templates")
+layout.apply()
+
+
+def _cards(process: str):
+    """실시간 KPI 카드를 화면 배치(순서 · 숨김) 기준으로 정렬하고 요약은 표시 중인 카드만 집계."""
+    c = provider.cards(process)
+    lay = layout.core()
+    by_id = {x["id"]: x for x in c["cards"]}
+    cards = [{**by_id[i], "hidden": i in lay["hidden"], "target_editable": i in lay["editable_target"]}
+             for i in lay["order"] if i in by_id]
+    shown = [x for x in cards if not x["hidden"]]
+    c["cards"] = cards
+    c["summary"] = {s: sum(1 for x in shown if x["status"] == s) for s in ("ok", "warn", "bad")}
+    return c
+
+
+def _processes():
+    return provider.processes(layout.visible_core())
 
 
 def _valid_process(process: str) -> bool:
@@ -66,8 +85,8 @@ class ConnectionManager:
         sub = self.subs.get(websocket)
         if sub is None:
             return
-        msg = {"type": "kpi_update", "processes": provider.processes(), "cards": provider.cards(sub["process"]),
-               "custom": custom_kpis.overview(sub["process"])}
+        msg = {"type": "kpi_update", "processes": _processes(), "cards": _cards(sub["process"]),
+               "custom": custom_kpis.overview(sub["process"]), "layout": layout.core()}
         if sub["kpi"] and _kpi_kind(sub["kpi"]):
             msg["detail"] = _detail(sub["process"], sub["kpi"])
         await websocket.send_json(msg)
@@ -95,6 +114,7 @@ async def ticker():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    layout.apply()
     task = asyncio.create_task(ticker())
     try:
         yield
@@ -126,13 +146,13 @@ async def index(request: Request):
 
 @app.get("/api/processes")
 async def get_processes():
-    return provider.processes()
+    return _processes()
 
 
 @app.get("/api/kpis")
 async def get_kpis(process: str = Query("all")):
     _check_process(process)
-    return {**provider.cards(process), "categories": KPI_CATEGORIES}
+    return {**_cards(process), "categories": KPI_CATEGORIES}
 
 
 @app.get("/api/kpis/{kpi_id}")
@@ -167,6 +187,7 @@ class CustomKpiBody(BaseModel):
     agg: Optional[str] = None
     description: Optional[str] = None
     owner: Optional[str] = None
+    hidden: Optional[bool] = None
 
 
 class ValueBody(BaseModel):
@@ -225,6 +246,98 @@ async def set_custom_value(kpi_id: str, body: ValueBody):
         raise HTTPException(status_code=400, detail=str(e)) from None
     await manager.broadcast()
     return {"id": kpi_id, "process": body.process, "period": body.period, "value": body.value}
+
+
+# ─── 화면 배치 / 편집 ────────────────────────────────────────────
+
+
+class CoreLayoutBody(BaseModel):
+    order: Optional[list[str]] = None
+    hidden: Optional[list[str]] = None
+
+
+class CoreKpiBody(BaseModel):
+    name: Optional[str] = None
+    en: Optional[str] = None
+    target: Optional[float] = None
+    reset: Optional[bool] = None
+
+
+class CategoryBody(BaseModel):
+    name: Optional[str] = None
+    en: Optional[str] = None
+
+
+class ArrangeCategory(BaseModel):
+    id: str
+    kpis: list[str]
+
+
+class ArrangeBody(BaseModel):
+    categories: list[ArrangeCategory]
+
+
+def _run(fn, *args):
+    try:
+        return fn(*args)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=f"Not found: {e}") from None
+    except (custom_kpis.ValidationError, layout.ValidationError) as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
+
+
+@app.get("/api/layout")
+async def get_layout():
+    return layout.core()
+
+
+@app.put("/api/layout/core")
+async def put_core_layout(body: CoreLayoutBody):
+    _run(layout.set_core, body.order, body.hidden)
+    await manager.broadcast()
+    return layout.core()
+
+
+@app.put("/api/layout/core/{kpi_id}")
+async def put_core_kpi(kpi_id: str, body: CoreKpiBody):
+    _run(layout.set_core_kpi, kpi_id, body.model_dump(exclude_unset=True))
+    await manager.broadcast()
+    return layout.core()
+
+
+@app.post("/api/layout/reset")
+async def reset_core_layout():
+    layout.reset_core()
+    await manager.broadcast()
+    return layout.core()
+
+
+@app.put("/api/custom-layout")
+async def put_custom_layout(body: ArrangeBody):
+    _run(custom_kpis.arrange, [c.model_dump() for c in body.categories])
+    await manager.broadcast()
+    return {"ok": True}
+
+
+@app.post("/api/custom-categories")
+async def post_category(body: CategoryBody):
+    cid = _run(custom_kpis.create_category, body.model_dump(exclude_none=True))
+    await manager.broadcast()
+    return {"id": cid}
+
+
+@app.put("/api/custom-categories/{cat_id}")
+async def put_category(cat_id: str, body: CategoryBody):
+    _run(custom_kpis.update_category, cat_id, body.model_dump(exclude_unset=True))
+    await manager.broadcast()
+    return {"id": cat_id}
+
+
+@app.delete("/api/custom-categories/{cat_id}")
+async def delete_category(cat_id: str):
+    _run(custom_kpis.delete_category, cat_id)
+    await manager.broadcast()
+    return {"deleted": cat_id}
 
 
 # ─── WebSocket ───────────────────────────────────────────────────
