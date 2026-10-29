@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K2 KPI Board</title>
+<link rel="stylesheet" href="/static/css/fonts.css">
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark">K2</div>
+    <div>
+      <div class="brand-title">KPI Board</div>
+      <div class="brand-sub">8대 공정 그룹 핵심 KPI 실시간 현황</div>
+    </div>
+  </div>
+  <div class="spacer"></div>
+  <div class="sources" id="sources"></div>
+  <div class="live" id="live"><b>연결 중</b><span class="num" id="updated">--</span></div>
+</header>
+
+<nav class="proc-tabs" id="procTabs" aria-label="공정 선택"></nav>
+
+<main class="page">
+  <div class="section-head">
+    <h2 id="cardsTitle">핵심 KPI</h2>
+    <span class="meta">최근 24시간 기준 · 목표 대비 · 전일 동시간 대비 · 카드를 선택하면 아래에 상세 분석이 열립니다</span>
+    <div class="summary" id="summary"></div>
+  </div>
+
+  <section class="kpi-grid" id="kpis"></section>
+
+  <section class="detail" id="detail" hidden></section>
+</main>
+
+<div class="tooltip" id="tooltip" hidden></div>
+
+<script src="/static/js/main.js"></script>
+</body>
+</html>
