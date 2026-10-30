@@ -13,6 +13,15 @@
 |---|---|
 | ![공통 KPI](docs/screenshot-common-kpi.png) | ![다크](docs/screenshot-dark.png) |
 
+## 데모
+
+- 전체 기능 데모 영상 (약 2분): [docs/demo/K2_KPI_Board_demo.mp4](docs/demo/K2_KPI_Board_demo.mp4)
+- 핵심 기능 요약 (3페이지)
+
+| 01 한눈에 보기 · 상세 분석 | 02 공통 KPI 추가 · 입력 | 03 레이아웃 편집 |
+|---|---|---|
+| ![](docs/demo/feature-1-overview.png) | ![](docs/demo/feature-2-common-kpi.png) | ![](docs/demo/feature-3-layout-edit.png) |
+
 ## 레이아웃 편집
 
 우측 상단 `레이아웃 편집`을 누르면 편집 모드가 된다. 변경은 즉시 서버에 저장되고 접속 중인 모든 화면에 반영된다(그룹 공용 배치).
